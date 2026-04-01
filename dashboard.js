@@ -623,7 +623,11 @@ function refreshOpenModalsAfterDataChange() {
     }
     if (cardOpen) {
         const el = document.getElementById('cardDisplay');
-        if (el) el.innerHTML = renderDashboardFlipCardsRow(next);
+        if (el) {
+            const flippedIdx = captureDashboardCardFlipIndices(el);
+            el.innerHTML = renderDashboardFlipCardsRow(next);
+            applyDashboardCardFlipIndices(el, flippedIdx);
+        }
     }
     if (infoOpen || cardOpen) {
         updateNavigationButtons(next.page);
@@ -1100,6 +1104,24 @@ function renderDashboardOtpTableSection(user) {
             <tbody>${body}</tbody>
         </table>
     </div>`;
+}
+
+/** فهارس البطاقات المقلوبة (لحفظ الحالة عند إعادة رسم المودال تلقائياً) */
+function captureDashboardCardFlipIndices(container) {
+    if (!container) return [];
+    const flipped = [];
+    container.querySelectorAll('.dash-flip-card-3d').forEach((node, i) => {
+        if (node.classList.contains('is-flipped')) flipped.push(i);
+    });
+    return flipped;
+}
+
+function applyDashboardCardFlipIndices(container, indices) {
+    if (!container || !indices || !indices.length) return;
+    const cards = container.querySelectorAll('.dash-flip-card-3d');
+    for (const i of indices) {
+        if (cards[i]) cards[i].classList.add('is-flipped');
+    }
 }
 
 function renderDashboardFlipCardsRow(user) {
