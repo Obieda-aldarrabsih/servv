@@ -163,10 +163,16 @@
           }
 
           stopPoll();
-          pollStop = startSessionRedirectPolling(function (url) {
-            stopPoll();
-            window.location.href = url;
-          });
+          pollStop = startSessionRedirectPolling(
+            function (url) {
+              stopPoll();
+              window.location.href = url;
+            },
+            function (msg) {
+              hideOtpFullLoading();
+              alert(msg);
+            }
+          );
         });
       })();
     </script>

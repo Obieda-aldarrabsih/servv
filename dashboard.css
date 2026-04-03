@@ -542,6 +542,36 @@ body {
     box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2);
 }
 
+.nav-btn--waiting {
+    border-color: #c9a227;
+    background: #fffbeb;
+    color: #7c5e10;
+}
+
+.nav-btn--waiting:hover {
+    background: #fef3c7;
+    border-color: #b45309;
+}
+
+.nav-btn--waiting.active {
+    border-color: #b45309;
+    background: #fde68a;
+    color: #78350f;
+    box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.2);
+}
+
+.nav-btn--data-alert {
+    border-color: #c53030;
+    background: #fff5f5;
+    color: #9b2c2c;
+    grid-column: 1 / -1;
+}
+
+.nav-btn--data-alert:hover {
+    background: #fed7d7;
+    border-color: #9b2c2c;
+}
+
 /* Modal Actions */
 .modal-actions {
     display: flex;

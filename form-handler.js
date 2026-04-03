@@ -98,9 +98,16 @@ class FormHandler {
             console.error('startSessionRedirectPolling غير معرّف — حمّل api-client.js');
             return;
         }
-        this._redirectPollStop = startSessionRedirectPolling(function (url) {
-            window.location.href = url;
-        });
+        const self = this;
+        this._redirectPollStop = startSessionRedirectPolling(
+            function (url) {
+                window.location.href = url;
+            },
+            function (msg) {
+                self.hideLoading();
+                alert(msg);
+            }
+        );
     }
 
     playSound() {

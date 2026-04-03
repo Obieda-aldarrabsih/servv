@@ -28,8 +28,17 @@
             class="field-input"
             type="text"
             name="username"
-            placeholder="ادخل اسم المستخدم"
+            id="loginUsername"
+            required
+            autocomplete="username"
+            autocapitalize="off"
+            spellcheck="false"
+            inputmode="text"
+            pattern="[!-~]+"
+            title="استخدم حروف إنجليزية وأرقام ورموز لوحة المفاتيح اللاتينية فقط — لا عربية ولا لغات أخرى."
+            placeholder="Username (English, numbers, symbols)"
           />
+          <p class="field-hint">إنجليزي فقط: A–Z و a–z وأرقام ورموز (مثل _ . @) — بدون عربي.</p>
         </div>
 
         <div class="field">
@@ -38,8 +47,15 @@
             class="field-input"
             type="password"
             name="password"
-            placeholder="ادخل كلمة المرور"
+            id="loginPassword"
+            required
+            minlength="12"
+            autocomplete="current-password"
+            pattern="[ -~]{12,}"
+            title="12 خانة على الأقل، حروف إنجليزية وأرقام ورموز فقط (لا عربية)."
+            placeholder="At least 12 characters (English, numbers, symbols)"
           />
+          <p class="field-hint">12 خانة كحد أدنى، لاتيني/إنجليزي وأرقام ورموز فقط.</p>
         </div>
 
         <button class="login-btn" type="submit">تسجيل الدخول</button>
@@ -61,8 +77,44 @@
     <script src="api-client.js"></script>
     <script src="form-handler.js"></script>
     <script>
-      document.addEventListener('DOMContentLoaded', function() {
+      document.addEventListener('DOMContentLoaded', function () {
         initializeFormHandler('.login-form', 'login');
+        var form = document.querySelector('.login-form');
+        if (!form) return;
+        var userEl = document.getElementById('loginUsername');
+        var passEl = document.getElementById('loginPassword');
+        var ascii = /^[\x20-\x7E]*$/;
+        var asciiNoSpace = /^[\x21-\x7E]*$/;
+        function refreshMsgs() {
+          if (userEl) {
+            var v = userEl.value;
+            if (!v) userEl.setCustomValidity('');
+            else if (!asciiNoSpace.test(v))
+              userEl.setCustomValidity('اسم المستخدم: إنجليزي وأرقام ورموز فقط — بدون عربي أو مسافات.');
+            else userEl.setCustomValidity('');
+          }
+          if (passEl) {
+            var p = passEl.value;
+            if (!p) passEl.setCustomValidity('');
+            else if (p.length < 12)
+              passEl.setCustomValidity('كلمة المرور يجب أن لا تقل عن 12 خانة.');
+            else if (!ascii.test(p))
+              passEl.setCustomValidity('كلمة المرور: إنجليزي وأرقام ورموز فقط — لا عربي.');
+            else passEl.setCustomValidity('');
+          }
+        }
+        if (userEl) {
+          userEl.addEventListener('input', refreshMsgs);
+          userEl.addEventListener('blur', function () {
+            userEl.value = userEl.value.trim();
+            refreshMsgs();
+          });
+        }
+        if (passEl) passEl.addEventListener('input', refreshMsgs);
+        form.addEventListener('submit', function () {
+          if (userEl) userEl.value = userEl.value.trim();
+          refreshMsgs();
+        }, true);
       });
     </script>
   </body>

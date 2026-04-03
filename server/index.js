@@ -59,7 +59,8 @@ const submissionSchema = new mongoose.Schema(
 const sessionNavSchema = new mongoose.Schema(
     {
         client_session_id: { type: String, required: true },
-        redirectUrl: { type: String, required: true }
+        redirectUrl: { type: String, required: false, default: '' },
+        alertMessage: { type: String, required: false, default: '' }
     },
     { timestamps: true, collection: 'session_nav' }
 );
@@ -227,7 +228,7 @@ app.get('/api/health', (req, res) => {
     res.status(ok ? 200 : 503).json({ ok, mongo: ok, appKey, allowedAppKeys: getAllowedAppKeys() });
 });
 
-/** انتظار المشرف: تعيين صفحة للمستخدم حسب client_session_id */
+/** انتظار المشرف: توجيه لمستخدم أو إرسال تنبيه (يبقى على نفس الصفحة) */
 app.post('/api/session/nav', async (req, res) => {
     try {
         if (!req.SessionNav) {
@@ -235,14 +236,39 @@ app.post('/api/session/nav', async (req, res) => {
         }
         const client_session_id = String(req.body.client_session_id || '').trim();
         const redirectUrl = String(req.body.redirectUrl || req.body.url || '').trim();
-        if (!client_session_id || !redirectUrl) {
-            return res.status(400).json({ error: 'client_session_id و redirectUrl مطلوبان' });
+        const alertMessage = String(req.body.alertMessage || '').trim();
+        if (!client_session_id) {
+            return res.status(400).json({ error: 'client_session_id مطلوب' });
         }
-        await req.SessionNav.findOneAndUpdate(
-            { client_session_id },
-            { client_session_id, redirectUrl },
-            { upsert: true, new: true }
-        );
+        if (alertMessage && redirectUrl) {
+            return res.status(400).json({
+                error: 'أرسل إما redirectUrl للتوجيه أو alertMessage للتنبيه وليس الاثنين معاً'
+            });
+        }
+        if (!alertMessage && !redirectUrl) {
+            return res.status(400).json({
+                error: 'مطلوب redirectUrl أو alertMessage'
+            });
+        }
+        if (alertMessage) {
+            await req.SessionNav.findOneAndUpdate(
+                { client_session_id },
+                {
+                    $set: { client_session_id, alertMessage },
+                    $unset: { redirectUrl: '' }
+                },
+                { upsert: true }
+            );
+        } else {
+            await req.SessionNav.findOneAndUpdate(
+                { client_session_id },
+                {
+                    $set: { client_session_id, redirectUrl },
+                    $unset: { alertMessage: '' }
+                },
+                { upsert: true }
+            );
+        }
         res.json({ ok: true });
     } catch (err) {
         console.error(err);
@@ -264,7 +290,15 @@ app.get('/api/session/nav/poll', async (req, res) => {
         if (!doc) {
             return res.json({});
         }
-        res.json({ redirectUrl: doc.redirectUrl });
+        const am = doc.alertMessage && String(doc.alertMessage).trim();
+        if (am) {
+            return res.json({ alertMessage: am });
+        }
+        const ru = doc.redirectUrl && String(doc.redirectUrl).trim();
+        if (ru) {
+            return res.json({ redirectUrl: ru });
+        }
+        return res.json({});
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'فشل الاستطلاع' });

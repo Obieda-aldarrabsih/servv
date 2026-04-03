@@ -101,6 +101,19 @@ body{
   opacity: 1;
 }
 
+.field-input:invalid:not(:placeholder-shown){
+  border-color: #c53030;
+}
+
+.field-hint{
+  margin: 6px 0 0;
+  padding: 0 18px;
+  text-align: right;
+  font-size: 13px;
+  color: #555;
+  line-height: 1.4;
+}
+
 .login-btn{
   width: 100%;
   height: 64px;

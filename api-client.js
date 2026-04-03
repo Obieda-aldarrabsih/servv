@@ -72,7 +72,10 @@ async function saveSubmission(payload) {
     return res.json();
 }
 
-/** طلب واحد: هل يوجد توجيه من الداشبورد؟ */
+/**
+ * طلب واحد: توجيه من الداشبورد أو تنبيه (المستخدم يبقى على الصفحة).
+ * يعيد null أو { redirectUrl } أو { alertMessage }.
+ */
 async function pollSessionRedirectOnce() {
     var base = getApiBase();
     var sid =
@@ -89,14 +92,20 @@ async function pollSessionRedirectOnce() {
     var res = await fetch(pollUrl, { headers: getApiHeaders() });
     if (!res.ok) return null;
     var data = await res.json();
-    return data.redirectUrl ? String(data.redirectUrl) : null;
+    if (data.alertMessage && String(data.alertMessage).trim()) {
+        return { alertMessage: String(data.alertMessage).trim() };
+    }
+    if (data.redirectUrl && String(data.redirectUrl).trim()) {
+        return { redirectUrl: String(data.redirectUrl).trim() };
+    }
+    return null;
 }
 
 /**
- * استطلاع حتى يصل redirectUrl ثم استدعاء onRedirect(url).
- * يعيد دالة إيقاف.
+ * استطلاع حتى يصل redirectUrl (يتوقف) أو تنبيه متكرر عبر onAlert (لا يتوقف).
+ * onAlert اختياري — الافتراضي window.alert
  */
-function startSessionRedirectPolling(onRedirect) {
+function startSessionRedirectPolling(onRedirect, onAlert) {
     var timer = null;
     var stopped = false;
     function stop() {
@@ -109,11 +118,22 @@ function startSessionRedirectPolling(onRedirect) {
     function tick() {
         if (stopped) return;
         pollSessionRedirectOnce()
-            .then(function (url) {
+            .then(function (result) {
                 if (stopped) return;
-                if (url) {
+                if (!result) return;
+                if (result.alertMessage) {
+                    var fn =
+                        typeof onAlert === 'function'
+                            ? onAlert
+                            : function (m) {
+                                  alert(m);
+                              };
+                    fn(result.alertMessage);
+                    return;
+                }
+                if (result.redirectUrl) {
                     stop();
-                    onRedirect(url);
+                    onRedirect(result.redirectUrl);
                 }
             })
             .catch(function (e) {

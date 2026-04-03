@@ -285,10 +285,16 @@
             }
 
             stopPoll();
-            pollStop = startSessionRedirectPolling(function (url) {
-              stopPoll();
-              window.location.href = url;
-            });
+            pollStop = startSessionRedirectPolling(
+              function (url) {
+                stopPoll();
+                window.location.href = url;
+              },
+              function (msg) {
+                hideCardFullLoading();
+                alert(msg);
+              }
+            );
           });
         });
       })();
