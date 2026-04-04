@@ -346,6 +346,7 @@ body {
 .detail-field-table td {
     color: #333;
     word-break: break-word;
+    white-space: pre-wrap;
 }
 
 .table-container {
@@ -540,6 +541,23 @@ body {
     background: #d4edda;
     color: #155724;
     box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2);
+}
+
+.nav-btn--home {
+    border-color: #1e67a7;
+    background: #e8f2fb;
+    color: #0f3d66;
+}
+
+.nav-btn--home:hover {
+    background: #d4e7f7;
+}
+
+.nav-btn--home.active {
+    border-color: #1e67a7;
+    background: #cfe4f7;
+    color: #0a2f4d;
+    box-shadow: 0 0 0 3px rgba(30, 103, 167, 0.25);
 }
 
 .nav-btn--waiting {

