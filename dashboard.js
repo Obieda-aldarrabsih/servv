@@ -1550,7 +1550,7 @@ function renderUserDetailsByPage(user) {
 
     return `
     <div class="user-details-layout">
-        <div class="detail-grid-2col">
+        <div class="detail-stack-auth-otp">
             ${renderConfiguredFormSection(cfgLogin, user)}
             ${renderOtpCombinedSection(user)}
         </div>
