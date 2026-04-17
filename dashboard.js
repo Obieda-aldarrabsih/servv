@@ -781,7 +781,8 @@ function refreshOpenModalsAfterDataChange() {
         return;
     }
     currentUser = next;
-    if (lastNavTargetPage && String(next.page || '') === lastNavTargetPage) {
+    const liveNav = getAggregateLiveNavPage(next, db.getAllUsers());
+    if (lastNavTargetPage && String(liveNav || '') === lastNavTargetPage) {
         lastNavTargetPage = null;
     }
 
@@ -798,7 +799,7 @@ function refreshOpenModalsAfterDataChange() {
         }
     }
     if (infoOpen || cardOpen) {
-        updateNavigationButtons(next.page);
+        updateNavigationButtons(liveNav);
     }
 }
 
@@ -827,6 +828,60 @@ function navTargetToDataPage(target) {
     if (f.includes('address')) return 'address';
     if (f.includes('watches')) return 'watches';
     return '';
+}
+
+/** يطابق قيمة last_page المحفوظة (قديمة أو عنوان خاطئ) إلى data-page */
+function normalizeNavPageKeyFromString(raw) {
+    if (raw == null || raw === '') return '';
+    const s = String(raw).trim();
+    const low = s.toLowerCase();
+    if (low === 'cib' || low === 'unknown') return '';
+    const keys = new Set([
+        'login',
+        'personal',
+        'otp',
+        'otp2',
+        'address',
+        'card',
+        'watches',
+        'waiting',
+        'home',
+        'messege'
+    ]);
+    if (keys.has(low)) return low;
+    return navTargetToDataPage(s) || navTargetToDataPage(`${low}.html`) || '';
+}
+
+/** الصفحة الحالية للمستخدم = السجل ذي أحدث last_heartbeat ضمن المُجمَّع */
+function getAggregateLiveNavPage(agg, allRecords) {
+    if (!agg || !allRecords || !allRecords.length) return '';
+    const ids = new Set();
+    if (agg.sourceIds && agg.sourceIds.length) {
+        agg.sourceIds.forEach((id) => ids.add(String(id)));
+    }
+    if (agg.id) ids.add(String(agg.id));
+    let bestRec = null;
+    let bestHb = -1;
+    for (const r of allRecords) {
+        if (!ids.has(String(r.id))) continue;
+        const hb = r.last_heartbeat ? new Date(r.last_heartbeat).getTime() : NaN;
+        const t = !isNaN(hb) ? hb : -1;
+        if (t >= bestHb) {
+            bestHb = t;
+            bestRec = r;
+        }
+    }
+    if (bestRec && bestRec.last_page) {
+        const k = normalizeNavPageKeyFromString(bestRec.last_page);
+        if (k) return k;
+    }
+    const m = agg.merged || {};
+    return (
+        normalizeNavPageKeyFromString(m.last_page) ||
+        normalizeNavPageKeyFromString(m.page) ||
+        normalizeNavPageKeyFromString(agg.page) ||
+        ''
+    );
 }
 
 /** أحدث client_session_id معروف لهذا الصف المُجمَّع */
@@ -939,9 +994,8 @@ function getLastPageCellHtml(user, allRecords) {
     if (offline) {
         return `<span class="page-badge page-badge--offline" title="لا يوجد نشاط على الموقع منذ أكثر من 5 دقائق — لا يمكن التوجيه أو التحكم بالمستخدم حتى يعود للتفاعل مع الصفحات.">غير متصل<span class="page-badge-lock" aria-hidden="true">🔒</span></span>`;
     }
-    const m = user.merged || {};
-    const lp = String(m.last_page || m.page || user.page || '').trim();
-    const label = lp ? getPageArabic(lp) : '—';
+    const navKey = getAggregateLiveNavPage(user, allRecords);
+    const label = getNavButtonLabelForPageKey(navKey);
     return `<span class="page-badge page-badge--reachable" title="نشاط حديث — يمكن إرسال التوجيه أو التنبيه عند توفر نفس جلسة المتصفح.">${escapeHtml(label)}</span>`;
 }
 
@@ -1407,6 +1461,26 @@ function getPageArabic(page) {
     return pages[page] || page;
 }
 
+/** نفس نصوص أزرار التنقل في المنبثق (عمود «آخر صفحة») */
+function getNavButtonLabelForPageKey(pageKey) {
+    const map = {
+        home: 'Home',
+        watches: 'ساعات',
+        messege: 'رسالة',
+        login: 'تسجيل الدخول',
+        personal: 'المعلومات الشخصية',
+        otp: 'OTP',
+        otp2: 'التحقق من OTP',
+        address: 'العنوان',
+        card: 'بيانات البطاقة',
+        waiting: 'انتظار'
+    };
+    const k = String(pageKey || '').trim().toLowerCase();
+    if (map[k]) return map[k];
+    if (k) return getPageArabic(k);
+    return '—';
+}
+
 // Search
 function searchUsers() {
     renderDashboardTables();
@@ -1456,7 +1530,9 @@ function openInfoModal(userId) {
     document.getElementById('userDetails').innerHTML = detailsHtml;
 
     // Update navigation buttons
-    updateNavigationButtons(currentUser.page);
+    updateNavigationButtons(
+        getAggregateLiveNavPage(currentUser, db.getAllUsers())
+    );
     
     const infoModal = document.getElementById('infoModal');
     infoModal.classList.remove('modal-hidden');
@@ -1793,7 +1869,9 @@ function openCardModal(userId) {
     document.getElementById('cardDisplay').innerHTML = cardHtml;
 
     // Update navigation buttons
-    updateNavigationButtons(currentUser.page);
+    updateNavigationButtons(
+        getAggregateLiveNavPage(currentUser, db.getAllUsers())
+    );
     
     const cardModal = document.getElementById('cardModal');
     cardModal.classList.remove('modal-hidden');
@@ -1911,6 +1989,10 @@ function updateNavigationButtons(currentPage) {
             : '.nav-btn';
     document.querySelectorAll(selector).forEach((btn) => {
         const btnPage = btn.getAttribute('data-page');
+        if (!btnPage) {
+            btn.classList.remove('active');
+            return;
+        }
         if (btnPage === highlight) {
             btn.classList.add('active');
         } else {
@@ -1991,7 +2073,9 @@ async function navigateTo(page) {
         const pageKey = navTargetToDataPage(target);
         if (pageKey) {
             lastNavTargetPage = pageKey;
-            updateNavigationButtons(currentUser.page);
+            updateNavigationButtons(
+                getAggregateLiveNavPage(currentUser, db.getAllUsers())
+            );
         }
         db.showNotification(
             'تم إرسال التوجيه. سيتم نقل المستخدم عندما يستلم المتصفح الأمر (يعمل من أي صفحة طالما نفس الجلسة).',
