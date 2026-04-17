@@ -46,7 +46,7 @@ body {
 .title {
   text-align: center;
   margin: 8px 0 14px;
-  font-size: clamp(22px, 5.5vw, 32px);
+  font-size: clamp(1.05rem, 4.2vw, 1.45rem);
   font-weight: 500;
   line-height: 1.35;
   padding: 0 4px;
@@ -161,12 +161,12 @@ body {
 }
 
 .btn {
-  min-height: 58px;
+  min-height: 52px;
   border: 2px solid #143c70;
   border-radius: 16px;
   background: var(--blue);
   color: #fff;
-  font-size: clamp(26px, 6.5vw, 32px);
+  font-size: clamp(1rem, 4.2vw, 1.2rem);
   font-weight: 700;
   margin: 6px auto 4px;
   width: 100%;

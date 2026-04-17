@@ -61,14 +61,14 @@ body{
 }
 
 .hero-banner__title{
-  font-size: clamp(24px, 3.2vw, 34px);
+  font-size: clamp(1.05rem, 4.2vw, 1.45rem);
   font-weight: 900;
   text-shadow: 0 1px 0 #f2a65a;
   margin-bottom: 10px;
 }
 
 .hero-banner__subtitle{
-  font-size: clamp(18px, 2.4vw, 24px);
+  font-size: clamp(0.95rem, 3.2vw, 1.1rem);
   font-weight: 800;
 }
 
@@ -132,7 +132,7 @@ body{
 
 .card__title{
   margin: 0 0 12px;
-  font-size: 30px;
+  font-size: clamp(1.1rem, 4vw, 1.4rem);
   font-weight: 900;
   color: var(--brown);
 }
@@ -140,7 +140,7 @@ body{
 .card__desc{
   margin: 0 auto;
   max-width: 520px;
-  font-size: 20px;
+  font-size: clamp(0.95rem, 3.2vw, 1.05rem);
   font-weight: 800;
   color: var(--brown);
   line-height: 1.5;
@@ -165,7 +165,7 @@ body{
 
 .footer__text{
   color: #fff;
-  font-size: 24px;
+  font-size: clamp(0.95rem, 3vw, 1.15rem);
   font-weight: 800;
   line-height: 1.35;
   position: relative;
@@ -183,11 +183,11 @@ body{
 }
 
 @media (max-width: 420px){
-  .top-logo{ width: 120px; }
-  .card__img{ width: 130px; }
-  .card__title{ font-size: 26px; }
-  .card__desc{ font-size: 18px; }
-  .footer__text{ font-size: 20px; }
-  .hero-banner{ padding: 18px 12px 16px; }
+  .top-logo{ width: 112px; }
+  .card__img{ width: min(130px, 38vw); }
+  .card__title{ font-size: clamp(1.05rem, 3.8vw, 1.25rem); }
+  .card__desc{ font-size: 0.92rem; }
+  .footer__text{ font-size: 0.95rem; }
+  .hero-banner{ padding: 16px 12px 14px; }
 }
 
