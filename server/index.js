@@ -524,10 +524,25 @@ app.get('/api/submissions', async (req, res) => {
 
         let docs;
         if (onlineOnly) {
-            // تجميع حسب session_id مع الحالة
+            // تجميع حسب client_session_id مع الحالة
+            // مهم: ترتيب حسب الجلسة ثم آخر نبض — وإلا يختار $first وثيقة عشوائية من نفس الجلسة
             docs = await req.Submission.aggregate([
-                // آخر heartbeat لكل session_id
-                { $sort: { last_heartbeat: -1 } },
+                {
+                    $match: {
+                        client_session_id: {
+                            $exists: true,
+                            $type: 'string',
+                            $nin: ['', null]
+                        }
+                    }
+                },
+                {
+                    $sort: {
+                        client_session_id: 1,
+                        last_heartbeat: -1,
+                        createdAt: -1
+                    }
+                },
                 {
                     $group: {
                         _id: '$client_session_id',

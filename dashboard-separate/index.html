@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>لوحة التحكم الإدارية - CIB (منفصلة)</title>
-    <link rel="stylesheet" href="dashboard.css?v=20260401b">
+    <link rel="stylesheet" href="../dashboard.css?v=20260401b">
 </head>
 <body>
     <!-- Login Modal -->
@@ -47,6 +47,7 @@
             <div class="bulk-actions">
                 <button onclick="deleteAllUsers()" class="btn-danger">حذف الكل</button>
                 <button onclick="refreshData()" class="btn-secondary">تحديث الصفحة</button>
+                <button onclick="window.open('../db-config.html', '_blank')" class="btn-secondary">إعداد قاعدة البيانات</button>
             </div>
         </div>
 
@@ -178,7 +179,7 @@
 
     <script src="api-config.js"></script>
     <script src="api-client.js"></script>
-    <script src="dashboard.js?v=20260402a"></script>
+    <script src="../dashboard.js?v=20260402a"></script>
 </body>
 </html>
 

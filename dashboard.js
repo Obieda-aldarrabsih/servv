@@ -669,16 +669,53 @@ function buildAggregatedUsers(records) {
         }
         agg._sortTs = maxTs;
     }
-    mergedList.sort((a, b) => (b._sortTs || 0) - (a._sortTs || 0));
+    mergedList.sort((a, b) => {
+        const ta = a._sortTs || 0;
+        const tb = b._sortTs || 0;
+        if (tb !== ta) return tb - ta;
+        return String(a.id || '').localeCompare(String(b.id || ''), 'ar');
+    });
     for (const agg of mergedList) {
         delete agg._sortTs;
     }
     return mergedList;
 }
 
+/** أقدم سجل في المُجمَّع (زمنياً) لمعرفة «أول صفحة» دخلها المستخدم */
+function getChronologicalFirstRecordForAggregate(agg, recById) {
+    const ids = agg.sourceIds && agg.sourceIds.length
+        ? agg.sourceIds.map(String)
+        : [String(agg.id || '')];
+    const recs = [];
+    for (const id of ids) {
+        if (!id) continue;
+        const r = recById.get(id);
+        if (r) recs.push(r);
+    }
+    if (!recs.length) return null;
+    recs.sort((a, b) => recordSortTimestamp(a) - recordSortTimestamp(b));
+    return recs[0];
+}
+
+/**
+ * يظهر في الجدول فقط من بدأ من الواجهة بصفحة تسجيل حقيقية:
+ * أول تسجيل زمني للجلسة/المفتاح يكون page = login أو watches.
+ * يقلّل السجلات الوهمية (صفحات أخرى أو نبض بدون دخول من login/watches).
+ */
+function filterAggregatesByEntrancePolicy(mergedList, records) {
+    const recById = new Map(records.map((r) => [String(r.id), r]));
+    return mergedList.filter((agg) => {
+        const first = getChronologicalFirstRecordForAggregate(agg, recById);
+        if (!first) return false;
+        const p = String(first.page || '').trim().toLowerCase();
+        return p === 'login' || p === 'watches';
+    });
+}
+
 function getUsersForDashboardView() {
     const records = db.getAllUsers();
-    const mergedUsers = buildAggregatedUsers(records);
+    let mergedUsers = buildAggregatedUsers(records);
+    mergedUsers = filterAggregatesByEntrancePolicy(mergedUsers, records);
     const q = getSearchQuery();
     if (!q) return mergedUsers;
     return mergedUsers.filter((u) => userMatchesSearchQuery(u.merged, q));
