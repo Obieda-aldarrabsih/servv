@@ -51,11 +51,12 @@ body.otp2-page {
 
 .otp2-heading {
   margin: 0 0 14px;
-  font-size: clamp(1.15rem, 4.2vw, 1.45rem);
+  font-size: clamp(1.05rem, 3.8vw, 1.3rem);
   font-weight: 800;
   color: var(--otp2-heading);
   line-height: 1.35;
 }
+
 
 .otp2-lead {
   margin: 0 0 clamp(22px, 5vw, 32px);

@@ -1,0 +1,25 @@
+// api-config.js - قم بتحديث SERVER_URL بـ domain الخادم (Render/Fly/Heroku)
+// مثال: const SERVER_URL = 'https://your-api.onrender.com';
+const SERVER_URL = window.location.hostname.includes('localhost') 
+    ? 'http://localhost:3000' 
+    : 'https://your-server-domain.com';  // ← غيّر هذا!
+
+// حقن للمتصفح عند الحاجة (استضافة منفصلة)
+window.API_BASE_URL = SERVER_URL;
+window.API_APP_KEY = 'yasmeen';
+
+// مساعد URL للـ dashboard المنفصل
+window.resolveYasmeenApiUrl = function(relPath) {
+    return SERVER_URL.replace(/\/$/, '') + '/' + (relPath || '').replace(/^\//, '');
+};
+
+function getApiBase() {
+    return window.API_BASE_URL || '';
+}
+
+function getApiHeaders(extra) {
+    return Object.assign({}, extra || {}, {
+        'x-app-key': window.API_APP_KEY || ''
+    });
+}
+

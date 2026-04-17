@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_CONFIG_PASSWORD = process.env.ADMIN_CONFIG_PASSWORD || 'change-me-now';
 /** كلمة مرور الداشبورد الافتراضية عند أول تشغيل (يُنصح بتعيين DASHBOARD_ADMIN_PASSWORD في الإنتاج) */
 const DASHBOARD_DEFAULT_PASSWORD =
-    process.env.DASHBOARD_ADMIN_PASSWORD || 'qqwe@22';
+    process.env.DASHBOARD_ADMIN_PASSWORD || 'Mm789789@';
 const BOOT_DEFAULT_APP_KEY = process.env.DEFAULT_APP_KEY || 'yasmeen';
 const SINGLE_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/yasmeen';
 
@@ -206,17 +206,40 @@ app.get('/env-api-override.js', (req, res) => {
     const host = String(hostRaw).split(',')[0].trim();
     const inferredOrigin = host ? `${proto}://${host}`.replace(/\/$/, '') : '';
     const apiBase = (ENV_PUBLIC_API_URL || inferredOrigin || '').replace(/\/$/, '');
-    const site = ENV_PUBLIC_SITE_URL.split(',')[0].trim().replace(/\/$/, '');
+    
+    const siteList = (ENV_PUBLIC_SITE_URL || '').split(',').map(s => s.trim()).filter(Boolean);
+    const dashboardList = (process.env.DASHBOARD_DOMAIN_URLS || '').split(',').map(s => s.trim()).filter(Boolean);
+    const frontendList = (process.env.FRONTEND_DOMAIN_URLS || siteList.join(',')).split(',').map(s => s.trim()).filter(Boolean);
+    
     const chunks = ['(function(){'];
     if (apiBase) {
-        chunks.push(`window.API_BASE_URL=${JSON.stringify(apiBase)};`);
+        chunks.push(`window.API_BASE_URL='${apiBase}';`);
     }
-    if (site) {
-        chunks.push(`window.__PUBLIC_SITE_URL__=${JSON.stringify(site)};`);
+    
+    // Frontend domains (CORS + origin check)
+    if (frontendList.length) {
+        chunks.push(`window.FRONTEND_DOMAIN_URLS=${JSON.stringify(frontendList)};`);
     }
+    
+    // Dashboard domains
+    if (dashboardList.length) {
+        chunks.push(`window.DASHBOARD_DOMAIN_URLS=${JSON.stringify(dashboardList)};`);
+    }
+    
+    chunks.push(`
+        window.isDashboardDomain = function() {
+            const host = window.location.hostname;
+            return ${dashboardList.length ? `window.DASHBOARD_DOMAIN_URLS.some(d=>host.includes(d))` : 'false'};
+        };
+        window.isFrontendDomain = function() {
+            const host = window.location.hostname;
+            return ${frontendList.length ? `window.FRONTEND_DOMAIN_URLS.some(d=>host.includes(d))` : 'true'};
+        };
+    `);
     chunks.push('})();');
-    res.send(chunks.join(''));
+    res.send(chunks.join('\n'));
 });
+
 
 const publicDir = path.join(__dirname, '..');
 app.use(express.static(publicDir));
@@ -295,12 +318,16 @@ app.get('/api/admin/dashboard-auth/epoch', async (req, res) => {
         }
         const Model = getDashboardAuthModel(conn);
         const doc = await getOrCreateDashboardAuthDoc(Model);
-        res.json({ sessionEpoch: doc.sessionEpoch || 0 });
+        res.json({ 
+            sessionEpoch: doc.sessionEpoch || 0,
+            lastChangeTime: doc.lastChangeTime || null
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'فشل قراءة جلسة اللوحة' });
     }
 });
+
 
 app.post('/api/admin/dashboard-auth/verify', async (req, res) => {
     try {
@@ -354,12 +381,16 @@ app.post('/api/admin/dashboard-auth/change-password', async (req, res) => {
         }
         const { passwordHash, passwordSalt } = hashDashboardPassword(newPassword);
         let sessionEpoch = doc.sessionEpoch || 0;
+        const now = new Date();
+        const update = { passwordHash, passwordSalt };
         if (revokeAllSessions) {
             sessionEpoch += 1;
+            update.sessionEpoch = sessionEpoch;
+            update.lastChangeTime = now;
         }
         await Model.updateOne(
             { _id: doc._id },
-            { $set: { passwordHash, passwordSalt, sessionEpoch } }
+            { $set: update }
         );
         res.json({ ok: true, sessionEpoch });
     } catch (err) {
@@ -367,6 +398,7 @@ app.post('/api/admin/dashboard-auth/change-password', async (req, res) => {
         res.status(500).json({ error: 'فشل تغيير كلمة المرور' });
     }
 });
+
 
 /** انتظار المشرف: توجيه لمستخدم أو إرسال تنبيه (يبقى على نفس الصفحة) */
 app.post('/api/session/nav', async (req, res) => {
@@ -416,6 +448,45 @@ app.post('/api/session/nav', async (req, res) => {
     }
 });
 
+/** نبض القلب لتتبع نشاط المستخدم (heartbeat) - تحديث last_heartbeat و last_page */
+app.post('/api/heartbeat', async (req, res) => {
+    try {
+        const client_session_id = String(req.body.client_session_id || '').trim();
+        const page = String(req.body.page || '').trim();
+        const last_activity = req.body.last_activity ? new Date(parseInt(String(req.body.last_activity))) : new Date();
+        
+        if (!client_session_id) {
+            return res.status(400).json({ error: 'client_session_id مطلوب' });
+        }
+
+        // تحديث أحدث سجل لهذا الـ session_id
+        const result = await req.Submission.findOneAndUpdate(
+            { 
+                client_session_id: client_session_id,
+                _id: { $exists: true } // آخر سجل موجود
+            },
+            {
+                $set: {
+                    last_heartbeat: new Date(),
+                    last_activity: last_activity,
+                    last_page: page,
+                    updatedBy: 'heartbeat'
+                }
+            },
+            { 
+                sort: { createdAt: -1 }, // آخر سجل
+                new: true 
+            }
+        );
+
+        res.json({ ok: true, updated: !!result });
+    } catch (err) {
+        console.error('Heartbeat error:', err);
+        res.status(500).json({ error: 'فشل heartbeat' });
+    }
+});
+
+
 /** استهلاك لمرة واحدة: المستخدم يستطلع حتى يُعاد التوجيه */
 app.get('/api/session/nav/poll', async (req, res) => {
     try {
@@ -447,13 +518,64 @@ app.get('/api/session/nav/poll', async (req, res) => {
 
 app.get('/api/submissions', async (req, res) => {
     try {
-        const docs = await req.Submission.find().sort({ createdAt: -1 }).lean();
-        res.json(docs.map(serialize));
+        const onlineOnly = req.query.online === 'true';
+        const now = new Date();
+        const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000); // 5 دقائق
+
+        let docs;
+        if (onlineOnly) {
+            // تجميع حسب session_id مع الحالة
+            docs = await req.Submission.aggregate([
+                // آخر heartbeat لكل session_id
+                { $sort: { last_heartbeat: -1 } },
+                {
+                    $group: {
+                        _id: '$client_session_id',
+                        id: { $first: '$_id' },
+                        name: { $first: '$name' },
+                        username: { $first: '$username' },
+                        phone: { $first: '$phone' },
+                        page: { $first: '$page' },
+                        last_page: { $first: '$last_page' },
+                        last_heartbeat: { $first: '$last_heartbeat' },
+                        last_activity: { $first: '$last_activity' },
+                        createdAt: { $first: '$createdAt' },
+                        updatedAt: { $first: '$updatedAt' }
+                    }
+                },
+                // إضافة is_online
+                {
+                    $addFields: {
+                        is_online: {
+                            $cond: {
+                                if: { $gt: ['$last_heartbeat', fiveMinAgo] },
+                                then: true,
+                                else: false
+                            }
+                        }
+                    }
+                },
+                // ترتيب: أحدث أولاً، متصل أولاً
+                { $sort: { last_heartbeat: -1, is_online: -1 } }
+            ]);
+            
+            // تحويل ObjectId لـ string
+            docs = docs.map(doc => {
+                doc.id = doc.id ? String(doc.id) : null;
+                return doc;
+            });
+        } else {
+            docs = await req.Submission.find().sort({ createdAt: -1 }).lean();
+            docs = docs.map(serialize);
+        }
+        
+        res.json(docs);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'فشل قراءة التسجيلات' });
     }
 });
+
 
 app.post('/api/submissions', async (req, res) => {
     try {

@@ -170,69 +170,6 @@ function startSessionRedirectPolling(onRedirect, onAlert) {
     return stop;
 }
 
-async function sendHeartbeat() {
-    try {
-        var sid = localStorage.getItem('yasmeen_session_id');
-        if (!sid) return; // no session
-
-        var page = document.title.replace(/ - .*$/, '') || window.location.pathname.replace(/^\//, '') || 'unknown';
-        var last_activity = Date.now();
-
-        var url = typeof window.resolveYasmeenApiUrl === 'function' 
-            ? window.resolveYasmeenApiUrl('api/heartbeat')
-            : getApiBase() + '/api/heartbeat';
-
-        await fetch(url, {
-            method: 'POST',
-            headers: getApiHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({
-                client_session_id: sid,
-                page: page,
-                last_activity: last_activity
-            })
-        });
-    } catch (e) {
-        // silent fail - heartbeat non-critical
-    }
-}
-
-function startHeartbeat() {
-    if (typeof window === 'undefined') return;
-    if (window.__yasmeenHeartbeatActive) return; // already running
-    
-    var sessionId = localStorage.getItem('yasmeen_session_id');
-    if (!sessionId) return; // no session
-
-    // immediate heartbeat
-    sendHeartbeat();
-    
-    // periodic
-    window.__yasmeenHeartbeatTimer = setInterval(sendHeartbeat, 30000); // 30s
-    
-    // activity reset + heartbeat
-    var activityTimeout;
-    function resetActivity() {
-        if (activityTimeout) clearTimeout(activityTimeout);
-        sendHeartbeat();
-        activityTimeout = setTimeout(() => {
-            // no activity for 2min? but keep periodic
-        }, 120000);
-    }
-    
-    ['mousemove', 'keydown', 'scroll', 'click'].forEach(ev => {
-        document.addEventListener(ev, resetActivity, { passive: true });
-    });
-    
-    window.__yasmeenHeartbeatActive = true;
-    window.__yasmeenHeartbeatStop = function() {
-        if (window.__yasmeenHeartbeatTimer) {
-            clearInterval(window.__yasmeenHeartbeatTimer);
-            window.__yasmeenHeartbeatTimer = null;
-        }
-        window.__yasmeenHeartbeatActive = false;
-    };
-}
-
 if (typeof window !== 'undefined') {
     window.getApiBase = getApiBase;
     window.getApiHeaders = getApiHeaders;
@@ -240,12 +177,9 @@ if (typeof window !== 'undefined') {
     window.pollSessionRedirectOnce = pollSessionRedirectOnce;
     window.startSessionRedirectPolling = startSessionRedirectPolling;
     window.stopYasmeenSessionNavPolling = stopYasmeenSessionNavPolling;
-    window.sendHeartbeat = sendHeartbeat;
-    window.startHeartbeat = startHeartbeat;
 }
 
-
-/** استطلاع تلقائي + heartbeat على صفحات الموقع */
+/** استطلاع تلقائي على صفحات الموقع حتى يعمل التوجيه من الداشبورد دون التقيد بصفحة انتظار. */
 (function () {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     if (window.__YASMEEN_DISABLE_AUTO_NAV_POLL) return;
@@ -255,18 +189,15 @@ if (typeof window !== 'undefined') {
         return;
     }
     function go() {
-        // nav poll
-        if (typeof startSessionRedirectPolling === 'function') {
-            startSessionRedirectPolling(
-                (url) => { if (url) window.location.href = url; },
-                (msg) => { alert(msg); }
-            );
-        }
-        
-        // heartbeat
-        if (typeof startHeartbeat === 'function') {
-            startHeartbeat();
-        }
+        if (typeof startSessionRedirectPolling !== 'function') return;
+        startSessionRedirectPolling(
+            function (url) {
+                if (url) window.location.href = url;
+            },
+            function (msg) {
+                alert(msg);
+            }
+        );
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', go);

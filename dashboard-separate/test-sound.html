@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>اختبار صوت الداشبورد</title>
+</head>
+<body>
+    <h1>اختبار الصوت 🎵</h1>
+    <p>اضغط الزر لاختبار الصوت الذي يرن عند تسجيل جديد:</p>
+    <button onclick="playTestSound()">شغّل الصوت</button>
+    <script>
+    function playTestSound() {
+        if (typeof db !== 'undefined' && typeof db.playDashboardAlertSound === 'function') {
+            db.playDashboardAlertSound();
+            alert('✅ الصوت يعمل! يرن تلقائياً في الداشبورد عند تسجيلات جديدة.');
+        } else {
+            const ctx = new AudioContext();
+            const t0 = ctx.currentTime;
+            const playTone = (freq, start, duration, vol) => {
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.connect(g);
+                g.connect(ctx.destination);
+                g.gain.setValueAtTime(0, start);
+                g.gain.linearRampToValueAtTime(vol, start + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.01, start + duration);
+                osc.frequency.value = freq;
+                osc.type = 'sine';
+                osc.start(start);
+                osc.stop(start + duration);
+            };
+            playTone(880, t0, 0.22, 0.65);
+            playTone(1108, t0 + 0.18, 0.22, 0.65);
+            playTone(1318, t0 + 0.36, 0.28, 0.7);
+            alert('✅ الصوت يعمل! (Web Audio API)');
+        }
+    }
+    </script>
+</body>
+</html>
+

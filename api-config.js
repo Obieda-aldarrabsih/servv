@@ -62,8 +62,16 @@
         if (!window.API_BASE_URL || !String(window.API_BASE_URL).trim()) {
             window.API_BASE_URL = remote;
         }
+        // Domain-aware config
+        if (typeof window.isDashboardDomain === 'function' && window.isDashboardDomain()) {
+            console.log('Dashboard domain detected');
+        }
+        if (typeof window.isFrontendDomain === 'function' && window.isFrontendDomain()) {
+            console.log('Frontend domain detected - heartbeat active');
+        }
         return;
     }
+
 
     if (protocol === 'file:') {
         window.API_BASE_URL = 'http://localhost:3000';

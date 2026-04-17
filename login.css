@@ -50,11 +50,12 @@ body{
 
 .login-title{
   margin: 0 0 10px;
-  font-size: 30px;
+  font-size: clamp(24px, 6vw, 26px);
   line-height: 1.25;
   color: var(--brown);
   font-weight: 800;
 }
+
 
 .login-subtitle{
   margin: 0 0 18px;
@@ -107,16 +108,17 @@ body{
 
 .login-btn{
   width: 100%;
-  height: 64px;
+  height: clamp(54px, 14vw, 58px);
   border-radius: 22px;
   border: 2px solid #111;
   background: var(--blue);
   color: #fff;
-  font-size: 28px;
+  font-size: clamp(20px, 5.5vw, 24px);
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 6px 0 rgba(0,0,0,0.08);
 }
+
 
 .login-note{
   margin: 0 auto 0;
@@ -130,17 +132,25 @@ body{
 .login-banner{
   width: 100%;
   margin-top: 22px;
-  height: 260px;
+  height: clamp(160px, 45vw, 200px);
   object-fit: cover;
   object-position: center;
   display: block;
 }
 
+
 @media (max-width: 420px){
-  .login-title{ font-size: 24px; }
-  .login-subtitle{ font-size: 16px; }
-  .login-btn{ font-size: 22px; }
-  .login-banner{ height: 220px; }
-  .login-logo{ width: 120px; }
+  .login-title{ font-size: 22px; }
+  .login-subtitle{ font-size: 15px; }
+  .login-btn{ font-size: 20px; height: 52px; }
+  .login-banner{ height: 180px; }
+  .login-logo{ width: 110px; }
 }
+
+@media (max-width: 360px) {
+  .login-title{ font-size: 20px; }
+  .login-btn{ font-size: 18px; height: 48px; }
+  .login-banner{ height: 160px; }
+}
+
 
