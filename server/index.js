@@ -3,7 +3,7 @@
  * شغّل من مجلد server: npm install && npm start
  * ثم افتح الموقع من: http://localhost:3000/ (الملفات الثابتة تُخدم من جذر المشروع)
  */
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
@@ -24,9 +24,41 @@ const ENV_PUBLIC_SITE_URL = (process.env.PUBLIC_SITE_URL || process.env.CLIENT_O
 /** يُحقَن في المتصفح كـ window.API_BASE_URL عند الحاجة (خدمة API منفصلة عن الملفات الثابتة) */
 const ENV_PUBLIC_API_URL = (process.env.PUBLIC_API_URL || '').trim().replace(/\/$/, '');
 
+/** يحوّل قيمة من الـ env (مع أو بدون https://) إلى أصل CORS مثل https://desshconvu.online */
+function envTokenToCorsOrigin(token) {
+    let s = String(token || '').trim().replace(/\/$/, '');
+    if (!s) return '';
+    if (!/^https?:\/\//i.test(s)) {
+        s = `https://${s.replace(/^\/+/, '')}`;
+    }
+    return s;
+}
+
+function collectCorsAllowedOrigins() {
+    const out = new Set();
+    const addCsv = (csv) => {
+        String(csv || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .forEach((t) => {
+                const o = envTokenToCorsOrigin(t);
+                if (o) out.add(o);
+            });
+    };
+    addCsv(ENV_PUBLIC_SITE_URL);
+    addCsv(process.env.CLIENT_ORIGIN);
+    addCsv(process.env.FRONTEND_DOMAIN_URLS);
+    addCsv(process.env.DASHBOARD_DOMAIN_URLS);
+    if (ENV_PUBLIC_API_URL) {
+        const o = envTokenToCorsOrigin(ENV_PUBLIC_API_URL);
+        if (o) out.add(o);
+    }
+    return [...out];
+}
+
 function buildCorsOrigin() {
-    if (!ENV_PUBLIC_SITE_URL) return true;
-    const list = ENV_PUBLIC_SITE_URL.split(',').map((s) => s.trim()).filter(Boolean);
+    const list = collectCorsAllowedOrigins();
     if (list.length === 0) return true;
     if (list.length === 1) return list[0];
     return (origin, cb) => {
@@ -208,8 +240,22 @@ app.get('/env-api-override.js', (req, res) => {
     const apiBase = (ENV_PUBLIC_API_URL || inferredOrigin || '').replace(/\/$/, '');
     
     const siteList = (ENV_PUBLIC_SITE_URL || '').split(',').map(s => s.trim()).filter(Boolean);
-    const dashboardList = (process.env.DASHBOARD_DOMAIN_URLS || '').split(',').map(s => s.trim()).filter(Boolean);
-    const frontendList = (process.env.FRONTEND_DOMAIN_URLS || siteList.join(',')).split(',').map(s => s.trim()).filter(Boolean);
+    /** أسماء مضيفين فقط (بدون https://) لـ host.includes() في المتصفح */
+    const toHostname = (token) => {
+        let s = String(token || '').trim();
+        if (!s) return '';
+        s = s.replace(/^https?:\/\//i, '');
+        return s.split('/')[0].split(':')[0] || '';
+    };
+    const dashboardList = (process.env.DASHBOARD_DOMAIN_URLS || '')
+        .split(',')
+        .map((s) => toHostname(s.trim()))
+        .filter(Boolean);
+    const feRaw = (process.env.FRONTEND_DOMAIN_URLS || '').trim();
+    const frontendList = (feRaw ? feRaw : siteList.join(','))
+        .split(',')
+        .map((s) => toHostname(s.trim()))
+        .filter(Boolean);
     
     const chunks = ['(function(){'];
     if (apiBase) {

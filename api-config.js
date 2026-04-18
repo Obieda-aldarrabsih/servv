@@ -16,7 +16,7 @@
      * رابط خادم Node فقط عندما تكون صفحات HTML على استضافة أخرى.
      * مثال: https://yasmeen-api.onrender.com
      */
-    var NODE_BACKEND_ORIGIN = 'https://servv-jjc6.onrender.com';
+    var NODE_BACKEND_ORIGIN = 'https://saving-okov.onrender.com';
 
     /** للتوافق مع الإصدارات السابقة — إن وُجد يُستخدم مثل NODE_BACKEND_ORIGIN */
     var PRODUCTION_API = '';
